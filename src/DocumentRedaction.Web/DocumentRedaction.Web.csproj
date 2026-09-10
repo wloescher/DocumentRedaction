@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <Description>Blazor Server UI and REST API host for the redaction service.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DocumentRedaction.Core/DocumentRedaction.Core.csproj" />
+    <ProjectReference Include="../DocumentRedaction.Documents/DocumentRedaction.Documents.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.OpenApi" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DocumentRedaction.Web.Tests" />
+  </ItemGroup>
+</Project>

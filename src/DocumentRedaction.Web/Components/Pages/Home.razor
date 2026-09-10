@@ -1,0 +1,248 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IDocumentRedactionService RedactionService
+@inject IDocumentProcessorResolver Resolver
+@inject ProcessingEstimator Estimator
+@inject IOptions<RedactionSettings> Settings
+@inject IJSRuntime JS
+@using Microsoft.Extensions.Options
+@using System.Diagnostics
+
+<PageTitle>Document Redaction</PageTitle>
+
+<h1>Redact a document</h1>
+<p class="lead">Upload a Word, PDF or text file, choose what to remove, and download the redacted copy.</p>
+
+<section class="card">
+    <h2>1. Document</h2>
+    <InputFile OnChange="OnFileSelected" accept="@AcceptList" disabled="@_busy" />
+    <p class="hint">Supported: @string.Join(", ", Resolver.SupportedExtensions). Maximum @FormatBytes(Settings.Value.MaxUploadBytes).</p>
+    @if (_file is not null)
+    {
+        <p class="file-name">@_file.Name (@FormatBytes(_file.Size))</p>
+    }
+</section>
+
+<section class="card">
+    <h2>2. What to redact</h2>
+    <div class="categories">
+        @foreach (RedactionCategoryInfo info in RedactionCategories.All)
+        {
+            <div class="category">
+                <label class="category-label">
+                    <input type="checkbox" checked="@_selected.Contains(info.Category)" disabled="@_busy"
+                           @onchange="e => ToggleCategory(info.Category, e)" />
+                    <strong>@info.DisplayName</strong>
+                </label>
+                <p class="hint">@info.Description</p>
+                @if (_selected.Contains(info.Category))
+                {
+                    <ul class="kinds">
+                        @foreach (InformationKindInfo kind in info.Kinds)
+                        {
+                            <li>
+                                <label>
+                                    <input type="checkbox" checked="@(!_excluded.Contains(kind.Kind))" disabled="@_busy"
+                                           @onchange="e => ToggleKind(kind.Kind, e)" />
+                                    @kind.DisplayName
+                                </label>
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </div>
+
+    <label class="block">
+        <span>Custom terms (one per line, such as names or project code words)</span>
+        <textarea @bind="_customTerms" rows="3" disabled="@_busy" placeholder="Jane Doe&#10;Project Falcon"></textarea>
+    </label>
+    <label class="inline">
+        <input type="checkbox" @bind="_caseSensitive" disabled="@_busy" /> Custom terms are case-sensitive
+    </label>
+    <label class="block">
+        <span>Placeholder format (<code>{0}</code> becomes the kind label)</span>
+        <input type="text" @bind="_placeholderFormat" disabled="@_busy" />
+    </label>
+</section>
+
+<section class="card">
+    <h2>3. Redact</h2>
+    <button class="primary" @onclick="RedactAsync" disabled="@(_busy || _file is null)">Redact document</button>
+
+    @if (_errors.Count > 0)
+    {
+        <ul class="errors">
+            @foreach (string error in _errors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    }
+
+    @if (_busy)
+    {
+        <p class="progress" role="status">
+            Redacting… elapsed @DurationFormatter.FormatDuration(_stopwatch.Elapsed),
+            ~@DurationFormatter.FormatDuration(RemainingEstimate) remaining
+        </p>
+    }
+
+    @if (_result is not null)
+    {
+        <div class="result" role="status">
+            <p><strong>Done.</strong> Redacted: @_result.Report.Total (@DurationFormatter.FormatDuration(_lastDuration))</p>
+            @if (_result.Report.Total > 0)
+            {
+                <table class="report">
+                    <thead><tr><th>Kind</th><th>Count</th></tr></thead>
+                    <tbody>
+                        @foreach ((InformationKind kind, int count) in _result.Report.CountsByKind.OrderByDescending(pair => pair.Value))
+                        {
+                            <tr><td>@InformationKinds.Get(kind).DisplayName</td><td>@count</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <button class="primary" @onclick="DownloadAsync" disabled="@_busy">Download @_result.FileName</button>
+        </div>
+    }
+</section>
+
+@code {
+    private IBrowserFile? _file;
+    private readonly HashSet<RedactionCategory> _selected = [RedactionCategory.Pii, RedactionCategory.Hipaa, RedactionCategory.Financial, RedactionCategory.Confidential];
+    private readonly HashSet<InformationKind> _excluded = [];
+    private string _customTerms = string.Empty;
+    private bool _caseSensitive;
+    private string _placeholderFormat = RedactionOptions.DefaultPlaceholderFormat;
+
+    private bool _busy;
+    private readonly List<string> _errors = [];
+    private RedactedDocument? _result;
+    private TimeSpan _lastDuration;
+    private TimeSpan _estimate;
+    private readonly Stopwatch _stopwatch = new();
+    private Timer? _ticker;
+
+    private string AcceptList => string.Join(",", Resolver.SupportedExtensions);
+
+    private TimeSpan RemainingEstimate
+    {
+        get
+        {
+            TimeSpan remaining = _estimate - _stopwatch.Elapsed;
+            return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        }
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _file = e.File;
+        _result = null;
+        _errors.Clear();
+    }
+
+    private void ToggleCategory(RedactionCategory category, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _selected.Add(category);
+        }
+        else
+        {
+            _selected.Remove(category);
+        }
+    }
+
+    private void ToggleKind(InformationKind kind, ChangeEventArgs e)
+    {
+        if (e.Value is true)
+        {
+            _excluded.Remove(kind);
+        }
+        else
+        {
+            _excluded.Add(kind);
+        }
+    }
+
+    private async Task RedactAsync()
+    {
+        if (_file is null)
+        {
+            return;
+        }
+
+        _errors.Clear();
+        _result = null;
+
+        RedactionRequest request = new(
+            _selected.Select(category => category.ToString()).ToList(),
+            _excluded.Select(kind => kind.ToString()).ToList(),
+            [_customTerms],
+            _placeholderFormat,
+            _caseSensitive);
+        RedactionRequestParser.ParseResult parsed = RedactionRequestParser.Parse(request);
+        if (!parsed.IsValid)
+        {
+            _errors.AddRange(parsed.Errors.Values.SelectMany(messages => messages));
+            return;
+        }
+
+        if (_file.Size > Settings.Value.MaxUploadBytes)
+        {
+            _errors.Add($"The file exceeds the maximum upload size of {FormatBytes(Settings.Value.MaxUploadBytes)}.");
+            return;
+        }
+
+        _busy = true;
+        _estimate = Estimator.Estimate(_file.Size);
+        _stopwatch.Restart();
+        _ticker = new Timer(_ => InvokeAsync(StateHasChanged), null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
+        try
+        {
+            await using Stream stream = _file.OpenReadStream(Settings.Value.MaxUploadBytes);
+            _result = await Estimator.MeasureAsync(_file.Size, () => RedactionService.RedactAsync(stream, _file.Name, _file.ContentType, parsed.Options!));
+        }
+        catch (DocumentRedactionException ex)
+        {
+            _errors.Add(ex.Message);
+        }
+        catch (IOException ex)
+        {
+            _errors.Add($"The file could not be read: {ex.Message}");
+        }
+        finally
+        {
+            _stopwatch.Stop();
+            _lastDuration = _stopwatch.Elapsed;
+            _ticker?.Dispose();
+            _ticker = null;
+            _busy = false;
+        }
+    }
+
+    private async Task DownloadAsync()
+    {
+        if (_result is null)
+        {
+            return;
+        }
+
+        using MemoryStream stream = new(_result.Content.ToArray());
+        using DotNetStreamReference reference = new(stream);
+        await JS.InvokeVoidAsync("documentRedaction.download", _result.FileName, _result.ContentType, reference);
+    }
+
+    private static string FormatBytes(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024.0):0.#} MB",
+    };
+
+    public void Dispose() => _ticker?.Dispose();
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "/Users/wloescher/.dotnet/dotnet",
+      "runtimeArgs": ["run", "--project", "src/DocumentRedaction.Web", "--no-launch-profile", "-e", "ASPNETCORE_ENVIRONMENT=Development", "--urls", "http://localhost:5039"],
+      "port": 5039
+    }
+  ]
+}

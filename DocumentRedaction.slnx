@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DocumentRedaction.Core/DocumentRedaction.Core.csproj" />
+    <Project Path="src/DocumentRedaction.Documents/DocumentRedaction.Documents.csproj" />
+    <Project Path="src/DocumentRedaction.Web/DocumentRedaction.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DocumentRedaction.Core.Tests/DocumentRedaction.Core.Tests.csproj" />
+    <Project Path="tests/DocumentRedaction.Documents.Tests/DocumentRedaction.Documents.Tests.csproj" />
+    <Project Path="tests/DocumentRedaction.Web.Tests/DocumentRedaction.Web.Tests.csproj" />
+  </Folder>
+</Solution>

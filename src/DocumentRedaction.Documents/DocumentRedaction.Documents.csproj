@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Per-format document processors (text, Word, PDF).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DocumentRedaction.Core/DocumentRedaction.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="QuestPDF" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DocumentRedaction.Documents.Tests" />
+  </ItemGroup>
+</Project>

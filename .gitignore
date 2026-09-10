@@ -1,0 +1,21 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.trx
+coverage*/
+*.coverage
+*.coveragexml
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+*.swp
+
+# Claude Code (machine-specific)
+.claude/settings.local.json

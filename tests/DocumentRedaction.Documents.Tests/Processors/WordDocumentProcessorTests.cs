@@ -2,7 +2,7 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using DocumentRedaction.Core.Model;
 using DocumentRedaction.Core.Redaction;
 using DocumentRedaction.Documents.Processors;
-using DocumentRedaction.Documents.Tests.Fixtures;
+using DocumentRedaction.Tests.Fixtures;
 
 namespace DocumentRedaction.Documents.Tests.Processors;
 

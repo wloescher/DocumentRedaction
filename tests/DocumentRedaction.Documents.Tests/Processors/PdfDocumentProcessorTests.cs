@@ -1,7 +1,7 @@
 using DocumentRedaction.Core.Model;
 using DocumentRedaction.Core.Redaction;
 using DocumentRedaction.Documents.Processors;
-using DocumentRedaction.Documents.Tests.Fixtures;
+using DocumentRedaction.Tests.Fixtures;
 using QuestPDF.Helpers;
 
 namespace DocumentRedaction.Documents.Tests.Processors;

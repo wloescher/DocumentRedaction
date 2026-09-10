@@ -1,6 +1,6 @@
 using System.Text;
 using DocumentRedaction.Core.Model;
-using DocumentRedaction.Documents.Tests.Fixtures;
+using DocumentRedaction.Tests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DocumentRedaction.Documents.Tests;

@@ -1,6 +1,19 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-@Body
+<header class="site-header">
+    <a class="brand" href="/">Document Redaction</a>
+    <nav>
+        <a href="/openapi/v1.json" target="_blank" rel="noopener">API</a>
+    </nav>
+</header>
+
+<main class="site-main">
+    @Body
+</main>
+
+<footer class="site-footer">
+    Documents are processed in memory and never stored or logged.
+</footer>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

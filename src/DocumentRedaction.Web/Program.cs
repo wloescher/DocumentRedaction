@@ -1,27 +1,47 @@
+using DocumentRedaction.Documents;
+using DocumentRedaction.Web;
+using DocumentRedaction.Web.Api;
 using DocumentRedaction.Web.Components;
+using DocumentRedaction.Web.Services;
+using Microsoft.AspNetCore.Http.Features;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+builder.Services.Configure<RedactionSettings>(builder.Configuration.GetSection(RedactionSettings.SectionName));
+RedactionSettings settings = builder.Configuration.GetSection(RedactionSettings.SectionName).Get<RedactionSettings>() ?? new RedactionSettings();
+
+// Uploads are buffered in memory and never written to disk or logs; the size limit bounds that memory.
+long requestLimit = settings.MaxUploadBytes + 64 * 1024;
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = requestLimit);
+builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = requestLimit);
+
+builder.Services.AddDocumentRedaction();
+builder.Services.AddSingleton<ProcessingEstimator>();
+builder.Services.AddOpenApi();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
+
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
-
 app.UseAntiforgery();
 
+app.MapOpenApi();
+app.MapRedactionApi();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+/// <summary>Exposed so integration tests can host the application with WebApplicationFactory.</summary>
+public partial class Program
+{
+}

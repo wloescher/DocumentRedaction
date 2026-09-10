@@ -4,10 +4,10 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using UglyToad.PdfPig;
 
-namespace DocumentRedaction.Documents.Tests.Fixtures;
+namespace DocumentRedaction.Tests.Fixtures;
 
 /// <summary>Builds small PDFs in memory with QuestPDF and reads them back with PdfPig.</summary>
-internal static class PdfFixture
+public static class PdfFixture
 {
     static PdfFixture()
     {

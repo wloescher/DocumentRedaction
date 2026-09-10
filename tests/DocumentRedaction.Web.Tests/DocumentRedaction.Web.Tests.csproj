@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/DocumentRedaction.Web/DocumentRedaction.Web.csproj" />
+    <ProjectReference Include="../DocumentRedaction.Tests.Fixtures/DocumentRedaction.Tests.Fixtures.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />

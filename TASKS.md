@@ -19,9 +19,9 @@ libraries only. Nothing persisted; document content never logged.
 - [x] 7. Documents: `WordDocumentProcessor` (Open XML) — match across runs, splice runs preserving formatting; body, tables, headers, footers, footnotes, endnotes
 - [x] 8. Documents: `PdfDocumentProcessor` — PdfPig extract → redact → QuestPDF regenerate; reject no-text-layer PDFs
 - [x] 9. Documents tests: fixtures; round-trip assertions; error paths (corrupt file, unsupported type, empty PDF)
-- [ ] 10. Web: minimal API `POST /api/redact`, `GET /api/categories`; size limit; ProblemDetails errors; OpenAPI
-- [ ] 11. Web: Blazor Server page — upload, category/kind checkboxes, custom terms, redact, download, summary; ETA/total time via shared `FormatDuration`
-- [ ] 12. Web tests: `WebApplicationFactory` integration tests
+- [x] 10. Web: minimal API `POST /api/redact`, `GET /api/categories`; size limit; ProblemDetails errors; OpenAPI
+- [x] 11. Web: Blazor Server page — upload, category/kind checkboxes, custom terms, redact, download, summary; ETA/total time via shared `FormatDuration`
+- [x] 12. Web tests: `WebApplicationFactory` integration tests
 - [ ] 13. Docs: README, ENDUSER.md, TASKS.md final state; PR with `Closes #1`
 
 ## Decisions

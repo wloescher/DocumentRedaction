@@ -7,6 +7,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/DocumentRedaction.Core.Tests/DocumentRedaction.Core.Tests.csproj" />
     <Project Path="tests/DocumentRedaction.Documents.Tests/DocumentRedaction.Documents.Tests.csproj" />
+    <Project Path="tests/DocumentRedaction.Tests.Fixtures/DocumentRedaction.Tests.Fixtures.csproj" />
     <Project Path="tests/DocumentRedaction.Web.Tests/DocumentRedaction.Web.Tests.csproj" />
   </Folder>
 </Solution>

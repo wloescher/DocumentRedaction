@@ -3,10 +3,10 @@ using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
 using V = DocumentFormat.OpenXml.Vml;
 
-namespace DocumentRedaction.Documents.Tests.Fixtures;
+namespace DocumentRedaction.Tests.Fixtures;
 
 /// <summary>Builds small .docx files in memory so tests need no binary fixtures.</summary>
-internal static class WordFixture
+public static class WordFixture
 {
     public static byte[] Build(Action<MainDocumentPart> configure)
     {

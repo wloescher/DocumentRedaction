@@ -11,10 +11,10 @@ libraries only. Nothing persisted; document content never logged.
 
 ## Tasks
 - [x] 1. Solution scaffold: `global.json`, `Directory.Build.props`, `.editorconfig`, sln, 3 src + 3 test projects, README, TASKS.md
-- [ ] 2. Core model: `RedactionCategory` (flags), `InformationKind`, `Detection`, `RedactionOptions`, `RedactionReport`
-- [ ] 3. Core detectors: `IDetector` + regex/checksum detectors for every kind; validators (Luhn, ABA, IBAN mod-97, NPI, DEA); `DetectorRegistry`
-- [ ] 4. Core engine: `TextRedactor` — run detectors, resolve overlaps (longest, then priority), splice placeholders, produce report
-- [ ] 5. Core tests: positive/negative/edge cases per kind, checksum boundaries, overlap resolution, custom terms, placeholder formatting
+- [x] 2. Core model: `RedactionCategory` (flags), `InformationKind`, `Detection`, `RedactionOptions`, `RedactionReport`
+- [x] 3. Core detectors: `IDetector` + regex/checksum detectors for every kind; validators (Luhn, ABA, IBAN mod-97, NPI, DEA); `DetectorRegistry`
+- [x] 4. Core engine: `TextRedactor` — run detectors, resolve overlaps (longest, then priority), splice placeholders, produce report
+- [x] 5. Core tests: positive/negative/edge cases per kind, checksum boundaries, overlap resolution, custom terms, placeholder formatting
 - [ ] 6. Documents: `IDocumentProcessor` + `DocumentProcessorResolver`; `TextDocumentProcessor`
 - [ ] 7. Documents: `WordDocumentProcessor` (Open XML) — match across runs, splice runs preserving formatting; body, tables, headers, footers, footnotes, endnotes
 - [ ] 8. Documents: `PdfDocumentProcessor` — PdfPig extract → redact → QuestPDF regenerate; reject no-text-layer PDFs

@@ -15,10 +15,10 @@ libraries only. Nothing persisted; document content never logged.
 - [x] 3. Core detectors: `IDetector` + regex/checksum detectors for every kind; validators (Luhn, ABA, IBAN mod-97, NPI, DEA); `DetectorRegistry`
 - [x] 4. Core engine: `TextRedactor` — run detectors, resolve overlaps (longest, then priority), splice placeholders, produce report
 - [x] 5. Core tests: positive/negative/edge cases per kind, checksum boundaries, overlap resolution, custom terms, placeholder formatting
-- [ ] 6. Documents: `IDocumentProcessor` + `DocumentProcessorResolver`; `TextDocumentProcessor`
-- [ ] 7. Documents: `WordDocumentProcessor` (Open XML) — match across runs, splice runs preserving formatting; body, tables, headers, footers, footnotes, endnotes
-- [ ] 8. Documents: `PdfDocumentProcessor` — PdfPig extract → redact → QuestPDF regenerate; reject no-text-layer PDFs
-- [ ] 9. Documents tests: fixtures; round-trip assertions; error paths (corrupt file, unsupported type, empty PDF)
+- [x] 6. Documents: `IDocumentProcessor` + `DocumentProcessorResolver`; `TextDocumentProcessor`
+- [x] 7. Documents: `WordDocumentProcessor` (Open XML) — match across runs, splice runs preserving formatting; body, tables, headers, footers, footnotes, endnotes
+- [x] 8. Documents: `PdfDocumentProcessor` — PdfPig extract → redact → QuestPDF regenerate; reject no-text-layer PDFs
+- [x] 9. Documents tests: fixtures; round-trip assertions; error paths (corrupt file, unsupported type, empty PDF)
 - [ ] 10. Web: minimal API `POST /api/redact`, `GET /api/categories`; size limit; ProblemDetails errors; OpenAPI
 - [ ] 11. Web: Blazor Server page — upload, category/kind checkboxes, custom terms, redact, download, summary; ETA/total time via shared `FormatDuration`
 - [ ] 12. Web tests: `WebApplicationFactory` integration tests

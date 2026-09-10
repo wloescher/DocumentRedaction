@@ -26,3 +26,4 @@ dotnet_diagnostic.CA1062.severity = none
 [tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.xUnit1051.severity = none

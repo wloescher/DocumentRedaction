@@ -22,7 +22,7 @@ libraries only. Nothing persisted; document content never logged.
 - [x] 10. Web: minimal API `POST /api/redact`, `GET /api/categories`; size limit; ProblemDetails errors; OpenAPI
 - [x] 11. Web: Blazor Server page — upload, category/kind checkboxes, custom terms, redact, download, summary; ETA/total time via shared `FormatDuration`
 - [x] 12. Web tests: `WebApplicationFactory` integration tests
-- [ ] 13. Docs: README, ENDUSER.md, TASKS.md final state; PR with `Closes #1`
+- [x] 13. Docs: README, ENDUSER.md, CLAUDE.md, TASKS.md final state; PR with `Closes #1`
 
 ## Decisions
 - Target `net10.0`; SDK lives at `~/.dotnet` (pinned via `global.json`).
@@ -32,7 +32,13 @@ libraries only. Nothing persisted; document content never logged.
 - PDF output is regenerated from extracted text (layout simplified); scanned PDFs rejected.
 - Personal names are not detected without NER; custom terms cover them for now.
 
+## Status
+All 13 tasks complete. 407 tests across Core (263), Documents (81) and Web (53) plus fixtures.
+Verified manually in the browser: upload → redact → per-kind summary → download.
+
 ## Follow-ups (out of scope for #1)
 - NER-based name/address detection (e.g. Azure AI Language) behind `IDetector`.
 - Layout-preserving PDF redaction.
-- Authentication / rate limiting for the API.
+- Redact Word core document properties (author, title) and embedded object text.
+- Authentication / rate limiting for the API; QuestPDF license review before commercial use.
+- Decompression limits for PDF parsing (Word already caps part size).

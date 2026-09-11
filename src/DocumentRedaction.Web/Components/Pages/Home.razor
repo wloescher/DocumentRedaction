@@ -135,6 +135,7 @@
     private TimeSpan _estimate;
     private readonly Stopwatch _stopwatch = new();
     private Timer? _ticker;
+    private volatile bool _disposed;
 
     private string AcceptList => string.Join(",", Resolver.SupportedExtensions);
 
@@ -210,7 +211,7 @@
         _busy = true;
         _estimate = Estimator.Estimate(_file.Size);
         _stopwatch.Restart();
-        _ticker = new Timer(_ => InvokeAsync(StateHasChanged), null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
+        _ticker = new Timer(_ => Tick(), null, TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(500));
         try
         {
             await using Stream stream = _file.OpenReadStream(Settings.Value.MaxUploadBytes);
@@ -253,5 +254,34 @@
         _ => $"{bytes / (1024.0 * 1024.0):0.#} MB",
     };
 
-    public void Dispose() => _ticker?.Dispose();
+    // The timer fires on a thread-pool thread, so a tick can be scheduled just as the component is
+    // torn down. Skip once disposed, and observe the render task so a tick that still races disposal
+    // does not surface as an unobserved ObjectDisposedException.
+    private void Tick()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = InvokeStateChangeAsync();
+    }
+
+    private async Task InvokeStateChangeAsync()
+    {
+        try
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit was torn down between the tick firing and this dispatch; nothing to update.
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        _ticker?.Dispose();
+    }
 }

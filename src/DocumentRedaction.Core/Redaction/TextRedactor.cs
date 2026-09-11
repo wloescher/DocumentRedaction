@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 using DocumentRedaction.Core.Detectors;
 using DocumentRedaction.Core.Model;
@@ -8,6 +9,11 @@ namespace DocumentRedaction.Core.Redaction;
 public sealed class TextRedactor : ITextRedactor
 {
     private readonly Dictionary<InformationKind, IDetector> _detectors;
+
+    // The detectors to run are a function of the options alone, so they are resolved once per
+    // options instance: document processors call Detect once per block with the same options, and
+    // EffectiveKinds() re-enumerates the catalog and re-normalizes custom terms on every call.
+    private readonly ConditionalWeakTable<RedactionOptions, IReadOnlyList<IDetector>> _detectorsByOptions = [];
 
     public TextRedactor(IEnumerable<IDetector> detectors)
     {
@@ -31,12 +37,17 @@ public sealed class TextRedactor : ITextRedactor
             return [];
         }
 
-        IEnumerable<Detection> candidates = options.EffectiveKinds()
-            .Where(_detectors.ContainsKey)
-            .SelectMany(kind => _detectors[kind].Detect(text, options));
+        IEnumerable<Detection> candidates = DetectorsFor(options)
+            .SelectMany(detector => detector.Detect(text, options));
 
         return DetectionResolver.Resolve(candidates);
     }
+
+    /// <summary>The detectors enabled by <paramref name="options"/>, resolved once per options instance.</summary>
+    private IReadOnlyList<IDetector> DetectorsFor(RedactionOptions options) =>
+        _detectorsByOptions.GetValue(
+            options,
+            opts => opts.EffectiveKinds().Where(_detectors.ContainsKey).Select(kind => _detectors[kind]).ToArray());
 
     public TextRedactionResult Redact(string text, RedactionOptions options)
     {

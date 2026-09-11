@@ -1,21 +1,22 @@
 # TASKS — Document Redaction service
 
-## In progress: API key auth, rate limiting, QuestPDF license — [#5](https://github.com/wloescher/DocumentRedaction/issues/5)
+## In progress: heuristic person-name detection — [#6](https://github.com/wloescher/DocumentRedaction/issues/6)
 
-Branch: `feature/5-api-key-rate-limit`
+Branch: `feature/6-person-names`
 
-The `/api` endpoints are anonymous and unthrottled, and the QuestPDF license is hard-coded to Community.
+Personal names are not detected; users must type every name as a custom term.
 
-- [x] 1. Settings: `Redaction:ApiKeys` (optional list), `Redaction:RateLimit` (`Enabled`, `PermitLimit`, `WindowSeconds`) and `Redaction:QuestPdfLicense`, validated at startup
-- [x] 2. API key: endpoint filter on the `/api` group checks `X-Api-Key` against the configured keys (constant-time); no keys configured means open mode with a startup warning; missing or wrong key is a 401 problem response
-- [x] 3. Rate limiting: fixed-window limiter on the `/api` group partitioned by valid API key, otherwise by client IP; 429 problem response with `Retry-After`
-- [x] 4. QuestPDF license: Documents takes the license through `AddDocumentRedaction`; Web binds it from settings
-- [x] 5. Tests: validator cases, open mode, missing/wrong/valid key, categories gated, 429 after the limit with per-key partitions, disabled limiter, license mapping, startup warning
-- [x] 6. Docs (README configuration and API sections, ENDUSER, CLAUDE.md) and review gate: correctness pass found an undefined numeric `QuestPdfLicense` and an oversized window passing startup validation (both now rejected), a scalar `ApiKeys` value silently binding nothing (now fails startup), and non-ASCII or duplicate keys accepted; cleanup pass bound the limiter through options, moved QuestPDF globals into one helper, removed a duplicate "open" predicate and shared the problem-details test helpers
+- [x] 1. Core: `InformationKind.PersonName` (PII and HIPAA, label `NAME`) and a `PersonNameDetector` with three rules: honorific-anchored (Dr., Mr., Ms., Prof., ...), label-anchored (Patient, Name, Attn, Dear, Sincerely, Signed, ...), and first-name-list pairs (curated list as an embedded resource; names that double as English words only count mid-sentence). Trailing non-name words (Date, Street, Inc, months, pronouns) are trimmed, tokens never cross a line break, and "Last, First", initials, suffixes, particles and Mc/O'/hyphen forms are handled
+- [x] 2. Tests: positives per rule, sentence-start and organisation negatives, trimming, line breaks, overlap with custom terms (equal length: custom term wins; longer name wins), category selection, placeholder, API category listing
+- [x] 3. Docs (README kinds and limitations, ENDUSER, CLAUDE.md, TASKS.md) and review gate: correctness pass found same-line salutations swallowing the next word, accented names half-redacted, "General Ledger"/"Employee Handbook" matched as names, honorifics inside label runs and month-named people never found (all fixed: rules split by anchor, Unicode words with trailing guards, separate never-starts/ends-a-name sets); cleanup pass shared street suffixes with the address detector, merged the name lists into one file, simplified the tokeniser and ranked the kind after dates
 
 ## Queue
 
-- [#6](https://github.com/wloescher/DocumentRedaction/issues/6) Heuristic person-name detection
+- (empty)
+
+## Done: API key auth, rate limiting, QuestPDF license — [#5](https://github.com/wloescher/DocumentRedaction/issues/5), PR #11
+
+Optional `X-Api-Key` gate and fixed-window throttle on `/api`, configurable QuestPDF tier; startup validation for every setting. 609 tests at merge.
 
 ## Done: Word metadata — [#4](https://github.com/wloescher/DocumentRedaction/issues/4), PR #10
 
@@ -40,5 +41,5 @@ detector interface; Word, PDF and text processors; 407 tests at merge.
 - Overlap resolution: longest match wins, then kind priority.
 - Placeholder default `[REDACTED-<KIND>]`, configurable.
 - PDF output is regenerated from extracted text (layout simplified); scanned PDFs rejected.
-- Personal names are not detected without NER; custom terms cover them for now.
+- Personal names are found by heuristics (#6); custom terms cover the misses and an NER provider can plug into `IDetector`.
 - Parsing caps are one `DocumentLimits` object shared by Word and PDF; exceeding one is 413. Decoders are bounded before they run wherever the format allows; LZW is held to its ratio.

@@ -5,4 +5,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DocumentRedaction.Core.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Detectors/Builtin/Resources/*.txt" LogicalName="%(Filename)%(Extension)" />
+  </ItemGroup>
 </Project>

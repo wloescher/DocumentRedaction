@@ -15,6 +15,7 @@ public static class DetectorRegistry
         new PassportNumberDetector(),
         new DriversLicenseNumberDetector(),
         new StreetAddressDetector(),
+        new PersonNameDetector(),
         new MedicalRecordNumberDetector(),
         new HealthPlanIdDetector(),
         new NationalProviderIdDetector(),

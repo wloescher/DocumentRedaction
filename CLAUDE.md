@@ -26,6 +26,11 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
   `WidensToSentence` on its catalog entry and stop at line breaks; the PDF processor relies on
   both when it joins block lines to catch wrapped identifiers. Kinds flagged `MetadataOnly`
   (document author) have no detector: processors redact them from document structure.
+- `PersonNameDetector` is heuristic: honorific, title, form-label, salutation and given-name-list
+  rules. The list is the embedded `Detectors/Builtin/Resources/GivenNames.txt`; put a new name in
+  the section after `## ambiguous` when it is also an ordinary word. Words that end a name, and
+  words a name can never start with, are the arrays at the top of the detector; street suffixes
+  come from `StreetAddressDetector`. Its priority sits after every pattern kind and after custom terms.
 - Detections carry matched text for tests only. Never log detection text or document content.
 - Test fixtures are built in memory (`tests/DocumentRedaction.Tests.Fixtures`); do not add binary
   .docx/.pdf files to the repo.
@@ -44,6 +49,6 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
 
 Issue #1 tracked the initial build (merged in PR #2). Each follow-up has its own issue, branch
 and PR: #3 PDF parsing caps (PR #7), #8 position-preserving PDF output (PR #9), #4 Word
-metadata (PR #10), #5 API key and rate limiting, #6 person-name detection. TASKS.md holds the
-checklist for the issue in progress plus the queue. Reference the issue in commit messages
-(`Refs #<n>`, `Closes #<n>`).
+metadata (PR #10), #5 API key and rate limiting (PR #11), #6 person-name detection. TASKS.md
+holds the checklist for the issue in progress plus the queue. Reference the issue in commit
+messages (`Refs #<n>`, `Closes #<n>`).

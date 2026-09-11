@@ -39,6 +39,9 @@ number, SWIFT) require an introducing keyword such as "Passport:".
   multi-column layout do not. Scanned PDFs with no text layer are rejected with a clear error.
 - Bare 10-digit and 9-digit numbers are only reported as NPI or routing numbers when their
   checksum passes, so a small share of unrelated numbers can still be over-redacted.
+- In PDFs a confidentiality sentence is redacted up to the line breaks around it (Word and text
+  files know where sentences end; a PDF block often does not). Identifiers wrapped across two
+  lines are still found because detection also runs on the block with its lines joined.
 - Parsing caps (see Configuration) bound decoded size, page count and text. An LZW stream
   larger than `MaxDecodedBytes / 2560` on disk is rejected unread because LZW cannot be measured
   without decoding; such streams are rare outside PDFs from the 1990s.

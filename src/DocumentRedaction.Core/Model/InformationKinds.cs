@@ -28,12 +28,16 @@ public static class InformationKinds
         new(InformationKind.IpAddress, "IP address", "IP", PiiAndHipaa, 160),
         new(InformationKind.StreetAddress, "Street address", "ADDRESS", PiiAndHipaa, 170),
         new(InformationKind.Date, "Date", "DATE", RedactionCategory.Hipaa, 180),
-        new(InformationKind.ConfidentialStatement, "Confidential statement", "CONFIDENTIAL", RedactionCategory.Confidential, 190),
+        new(InformationKind.ConfidentialStatement, "Confidential statement", "CONFIDENTIAL", RedactionCategory.Confidential, 190, WidensToSentence: true),
     }.ToFrozenDictionary(info => info.Kind);
 
     /// <summary>All kinds, ordered by priority.</summary>
     public static IReadOnlyList<InformationKindInfo> All { get; } =
         ByKind.Values.OrderBy(info => info.Priority).ToArray();
+
+    /// <summary>Kinds whose detections widen to a sentence; see <see cref="InformationKindInfo.WidensToSentence"/>.</summary>
+    public static IReadOnlySet<InformationKind> SentenceKinds { get; } =
+        All.Where(info => info.WidensToSentence).Select(info => info.Kind).ToHashSet();
 
     public static InformationKindInfo Get(InformationKind kind) =>
         ByKind.TryGetValue(kind, out InformationKindInfo? info)

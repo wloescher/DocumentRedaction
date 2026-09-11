@@ -39,6 +39,24 @@ public static class PdfFixture
             }
         }).GeneratePdf();
 
+    /// <summary>
+    /// One page whose lines sit directly under each other with no extra spacing, so the layout
+    /// analysis sees a single multi-line block rather than one block per line.
+    /// </summary>
+    public static byte[] BuildLines(params string[] lines) =>
+        Document.Create(container => container.Page(page =>
+        {
+            page.Size(PageSizes.Letter);
+            page.Margin(40);
+            page.Content().Column(column =>
+            {
+                foreach (string line in lines)
+                {
+                    column.Item().Text(line);
+                }
+            });
+        })).GeneratePdf();
+
     /// <summary>A syntactically valid single-page PDF with no content stream at all.</summary>
     public static byte[] BlankPage() => RawPdf(PageObjects(pageCount: 1, content: null));
 

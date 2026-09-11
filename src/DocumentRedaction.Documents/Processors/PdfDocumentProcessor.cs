@@ -63,6 +63,9 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
                 "The PDF contains no extractable text. Scanned documents need OCR before they can be redacted.");
         }
 
+        // Built once: the custom-term detector caches its regex per options instance.
+        RedactionOptions tokenOptions = options with { ExcludedKinds = options.ExcludedKinds.Union(InformationKinds.SentenceKinds).ToHashSet() };
+
         RedactionReport report = RedactionReport.Empty;
         List<PageContent> redacted = [];
         foreach (PageContent page in pages)
@@ -71,15 +74,70 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
             List<string> paragraphs = [];
             foreach (string paragraph in page.Paragraphs)
             {
-                TextRedactionResult result = _redactor.Redact(paragraph, options);
-                report = report.Merge(result.Report);
-                paragraphs.Add(result.RedactedText);
+                IReadOnlyList<Detection> detections = DetectBlock(paragraph, options, tokenOptions);
+                report = report.Merge(RedactionReport.FromDetections(detections));
+                paragraphs.Add(_redactor.Apply(paragraph, detections, options));
             }
 
             redacted.Add(page with { Paragraphs = paragraphs });
         }
 
         return new ProcessedDocument(Render(redacted), report);
+    }
+
+    /// <summary>
+    /// A block's lines are joined with newlines so sentence-widening detectors stop at a line
+    /// break (a confidentiality marker in a bullet list must not swallow the whole list). A second
+    /// pass over the same text with spaces instead finds an identifier wrapped across two lines,
+    /// such as a card number; <paramref name="tokenOptions"/> leaves the sentence kinds out of it,
+    /// or they would widen to the block. Both strings have identical offsets, so the two sets
+    /// merge directly. Before resolving overlaps, every sentence is widened over each wrapped
+    /// token (and other sentence) it touches, so no half of a token survives on a neighbouring
+    /// line and the sentence cannot lose the overlap to a longer token.
+    /// </summary>
+    private IReadOnlyList<Detection> DetectBlock(string block, RedactionOptions options, RedactionOptions tokenOptions)
+    {
+        IReadOnlyList<Detection> byLine = _redactor.Detect(block, options);
+        if (!block.Contains('\n', StringComparison.Ordinal))
+        {
+            return byLine;
+        }
+
+        IReadOnlyList<Detection> acrossLines = _redactor.Detect(block.Replace('\n', ' '), tokenOptions);
+        List<Detection> sentences = byLine.Where(found => InformationKinds.SentenceKinds.Contains(found.Kind)).ToList();
+        IEnumerable<Detection> tokens = byLine.Where(found => !InformationKinds.SentenceKinds.Contains(found.Kind)).Concat(acrossLines);
+
+        WidenOverOverlaps(sentences, acrossLines, block);
+        return DetectionResolver.Resolve(tokens.Concat(sentences));
+    }
+
+    /// <summary>
+    /// Grows each sentence to cover every token and sentence it overlaps, repeating until nothing
+    /// grows: a widened sentence can touch a new neighbour. Spans only ever grow, so this ends.
+    /// </summary>
+    private static void WidenOverOverlaps(List<Detection> sentences, IReadOnlyList<Detection> tokens, string block)
+    {
+        bool grew = true;
+        while (grew)
+        {
+            grew = false;
+            for (int i = 0; i < sentences.Count; i++)
+            {
+                foreach (Detection other in tokens.Concat(sentences.ToArray()))
+                {
+                    Detection sentence = sentences[i];
+                    if (!sentence.Overlaps(other) || (sentence.Start <= other.Start && other.End <= sentence.End))
+                    {
+                        continue;
+                    }
+
+                    int start = Math.Min(sentence.Start, other.Start);
+                    int end = Math.Max(sentence.End, other.End);
+                    sentences[i] = new Detection(sentence.Kind, start, end - start, block.Substring(start, end - start));
+                    grew = true;
+                }
+            }
+        }
     }
 
     private List<PageContent> Extract(ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
@@ -143,7 +201,8 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
 
     /// <summary>
     /// Groups words into blocks (Docstrum), orders the blocks as a reader would, and joins each
-    /// block's lines with spaces so that an identifier wrapped across lines is still one token.
+    /// block's lines with newlines; see <see cref="DetectBlock"/> for how both line-bound and
+    /// line-spanning detections are found on that text.
     /// </summary>
     private static List<string> ExtractParagraphs(Page page)
     {
@@ -156,7 +215,7 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
         IReadOnlyList<TextBlock> blocks = DocstrumBoundingBoxes.Instance.GetBlocks(words);
         return UnsupervisedReadingOrderDetector.Instance.Get(blocks)
             .OrderBy(block => block.ReadingOrder)
-            .Select(block => string.Join(' ', block.TextLines.Select(line => line.Text.Trim())).Trim())
+            .Select(block => string.Join('\n', block.TextLines.Select(line => line.Text.Trim())).Trim())
             .Where(paragraph => paragraph.Length > 0)
             .ToList();
     }

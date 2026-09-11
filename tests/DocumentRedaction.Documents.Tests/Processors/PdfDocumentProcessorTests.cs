@@ -76,6 +76,100 @@ public class PdfDocumentProcessorTests
     }
 
     [Fact]
+    public void Confidential_marker_widens_to_its_line_not_the_whole_block()
+    {
+        byte[] input = PdfFixture.BuildLines("Responsibilities at the firm", "handled confidential client matters", "shipped on time");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+        string text = Assert.Single(PdfFixture.ReadPageTexts(processed.Content));
+
+        Assert.Contains("[REDACTED-CONFIDENTIAL]", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("confidential", text, StringComparison.Ordinal);
+        Assert.Contains("Responsibilities at the firm", text, StringComparison.Ordinal);
+        Assert.Contains("shipped on time", text, StringComparison.Ordinal);
+        Assert.Equal(1, processed.Report.Total);
+    }
+
+    [Fact]
+    public void Identifier_wrapped_across_lines_is_still_redacted()
+    {
+        // Also pins the fixture: a wrapped card can only be found when both lines form one block.
+        byte[] input = PdfFixture.BuildLines("Card on file 4111 1111 1111", "1111 expires soon");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+        string text = Assert.Single(PdfFixture.ReadPageTexts(processed.Content));
+
+        Assert.Contains("[REDACTED-CREDIT-CARD]", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("4111", text, StringComparison.Ordinal);
+        Assert.Contains("expires soon", text, StringComparison.Ordinal);
+        Assert.Equal(1, processed.Report.CountsByKind[InformationKind.CreditCardNumber]);
+    }
+
+    [Fact]
+    public void Token_wrapped_into_a_confidential_line_is_swallowed_whole()
+    {
+        // The card starts on line 1 and ends on the confidential line; the sentence widens over it.
+        byte[] input = PdfFixture.BuildLines("SSN 123-45-6789 and card 4111 1111", "1111 1111 are confidential details", "next item");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+        string text = Assert.Single(PdfFixture.ReadPageTexts(processed.Content));
+
+        Assert.DoesNotContain("4111", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("1111", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("123-45-6789", text, StringComparison.Ordinal);
+        Assert.Contains("and card", text, StringComparison.Ordinal);
+        Assert.Contains("next item", text, StringComparison.Ordinal);
+        Assert.Equal(1, processed.Report.CountsByKind[InformationKind.SocialSecurityNumber]);
+        Assert.Equal(1, processed.Report.CountsByKind[InformationKind.ConfidentialStatement]);
+        Assert.Equal(2, processed.Report.Total);
+    }
+
+    [Fact]
+    public void Short_confidential_line_is_not_lost_to_a_longer_wrapped_token()
+    {
+        // The confidential line is shorter than the card that wraps into it; length alone would drop the sentence.
+        byte[] input = PdfFixture.BuildLines("SSN 123-45-6789 4111 1111 1111", "1111 Confidential", "next item");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+        string text = Assert.Single(PdfFixture.ReadPageTexts(processed.Content));
+
+        Assert.DoesNotContain("Confidential", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("1111", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("123-45-6789", text, StringComparison.Ordinal);
+        Assert.Contains("next item", text, StringComparison.Ordinal);
+        Assert.Equal(1, processed.Report.CountsByKind[InformationKind.ConfidentialStatement]);
+    }
+
+    [Fact]
+    public void Token_bridging_two_confidential_lines_merges_them()
+    {
+        byte[] input = PdfFixture.BuildLines("Confidential 4111 1111", "1111 1111 and this too is confidential stuff with many more words here", "next item");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+        string text = Assert.Single(PdfFixture.ReadPageTexts(processed.Content));
+
+        Assert.DoesNotContain("Confidential", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("1111", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("many more", text, StringComparison.Ordinal);
+        Assert.Contains("next item", text, StringComparison.Ordinal);
+        Assert.Equal(1, processed.Report.Total);
+    }
+
+    [Fact]
+    public void Token_wrapped_out_of_a_confidential_line_is_swallowed_whole()
+    {
+        byte[] input = PdfFixture.BuildLines("confidential card 4111 1111", "1111 1111 expires soon", "next item");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+        string text = Assert.Single(PdfFixture.ReadPageTexts(processed.Content));
+
+        Assert.DoesNotContain("1111", text, StringComparison.Ordinal);
+        Assert.Contains("expires soon", text, StringComparison.Ordinal);
+        Assert.Contains("next item", text, StringComparison.Ordinal);
+        Assert.Equal(1, processed.Report.Total);
+    }
+
+    [Fact]
     public void Honours_cancellation()
     {
         using CancellationTokenSource cts = new();

@@ -22,7 +22,9 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
   is `AddDocumentRedaction()` in Documents.
 - Every `InformationKind` needs a catalog entry in `InformationKinds`, a detector registered in
   `DetectorRegistry`, and tests for positives, negatives and checksum edges. A Core test fails
-  if a kind has no detector.
+  if a kind has no detector. A detector that widens to the surrounding sentence must set
+  `WidensToSentence` on its catalog entry and stop at line breaks; the PDF processor relies on
+  both when it joins block lines to catch wrapped identifiers.
 - Detections carry matched text for tests only. Never log detection text or document content.
 - Test fixtures are built in memory (`tests/DocumentRedaction.Tests.Fixtures`); do not add binary
   .docx/.pdf files to the repo.

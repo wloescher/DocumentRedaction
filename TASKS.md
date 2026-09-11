@@ -14,13 +14,14 @@ PDF had no guard at all, and the host read its settings before test configuratio
 - [x] 5. Tests: limits validation, filter provider (zlib, PdfPig-style header skip, raw deflate, fast path accounting, predictor, LZW, RunLength, CCITT, total budget, fail-fast), PDF caps at and over the limit, multi-page and xref-stream bombs, Word part cap, startup validation, config binding
 - [x] 6. Docs: README configuration table, ENDUSER messages, CLAUDE.md conventions
 - [x] 7. Review gate: 10 findings (Flate measure not mirroring PdfPig, LZW/predictor/CCITT unbounded, no total budget, swallowed rejection after `Open`, cancellation rewrapped, `MaxCharacters` semantics, upload ceiling, fast path, fail-fast, dead page guard) all fixed
+- [x] 8. Hotfix from a real resume: PDF block lines are joined with newlines so the confidential detector widens to a line, not the whole block (it had swallowed a full section); a second pass on the space-joined text keeps wrapped identifiers (cards, SSNs) detectable, sentence kinds (`InformationKindInfo.WidensToSentence`) sit that pass out, and a sentence widens over any wrapped token it overlaps so no half survives; deterministic multi-line fixture and tests; a second review found two overlap leaks (short sentence losing to a longer wrapped token, token bridging two sentences) fixed by widening to a fixpoint before resolving
 
 ## Queue
 
 - [#4](https://github.com/wloescher/DocumentRedaction/issues/4) Redact Word document properties and change-tracking authors
 - [#5](https://github.com/wloescher/DocumentRedaction/issues/5) API key auth, rate limiting, QuestPDF license config
 - [#6](https://github.com/wloescher/DocumentRedaction/issues/6) Heuristic person-name detection
-- Layout-preserving PDF redaction (no issue yet; deferred)
+- [#8](https://github.com/wloescher/DocumentRedaction/issues/8) Position-preserving PDF output (next after #7 merges)
 
 ## Done: initial service — [#1](https://github.com/wloescher/DocumentRedaction/issues/1), PR #2
 

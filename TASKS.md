@@ -1,44 +1,38 @@
 # TASKS — Document Redaction service
 
-Tracking issue: [#1](https://github.com/wloescher/DocumentRedaction/issues/1)
-Branch: `feature/1-initial-service`
+## In progress: parsing caps — [#3](https://github.com/wloescher/DocumentRedaction/issues/3)
 
-## Goal
-A .NET 10 service where a user uploads a Word, PDF, or text document, selects the categories to
-redact (PII, HIPAA, Financial, Confidential), and downloads a redacted copy. Blazor Server UI plus
-a REST API in one host. Pattern-based detection with a pluggable detector interface. Open-source
-libraries only. Nothing persisted; document content never logged.
+Branch: `feature/3-pdf-limits`
 
-## Tasks
-- [x] 1. Solution scaffold: `global.json`, `Directory.Build.props`, `.editorconfig`, sln, 3 src + 3 test projects, README, TASKS.md
-- [x] 2. Core model: `RedactionCategory` (flags), `InformationKind`, `Detection`, `RedactionOptions`, `RedactionReport`
-- [x] 3. Core detectors: `IDetector` + regex/checksum detectors for every kind; validators (Luhn, ABA, IBAN mod-97, NPI, DEA); `DetectorRegistry`
-- [x] 4. Core engine: `TextRedactor` — run detectors, resolve overlaps (longest, then priority), splice placeholders, produce report
-- [x] 5. Core tests: positive/negative/edge cases per kind, checksum boundaries, overlap resolution, custom terms, placeholder formatting
-- [x] 6. Documents: `IDocumentProcessor` + `DocumentProcessorResolver`; `TextDocumentProcessor`
-- [x] 7. Documents: `WordDocumentProcessor` (Open XML) — match across runs, splice runs preserving formatting; body, tables, headers, footers, footnotes, endnotes
-- [x] 8. Documents: `PdfDocumentProcessor` — PdfPig extract → redact → QuestPDF regenerate; reject no-text-layer PDFs
-- [x] 9. Documents tests: fixtures; round-trip assertions; error paths (corrupt file, unsupported type, empty PDF)
-- [x] 10. Web: minimal API `POST /api/redact`, `GET /api/categories`; size limit; ProblemDetails errors; OpenAPI
-- [x] 11. Web: Blazor Server page — upload, category/kind checkboxes, custom terms, redact, download, summary; ETA/total time via shared `FormatDuration`
-- [x] 12. Web tests: `WebApplicationFactory` integration tests
-- [x] 13. Docs: README, ENDUSER.md, CLAUDE.md, TASKS.md final state; PR with `Closes #1`
+Guard against decompression bombs and oversized documents. Word already capped part size;
+PDF had no guard at all, and the host read its settings before test configuration applied.
 
-## Decisions
+- [x] 1. `DocumentLimits` (max decoded bytes per stream/part, total decoded bytes per PDF, text characters, PDF pages) with validation; DI via `AddDocumentRedaction(factory)`
+- [x] 2. PDF: `BoundedFilterProvider` bounds every PdfPig decoder before it runs (Flate 1032:1 fast path then a counting trial inflate that mirrors PdfPig's two-byte skip; LZW and RunLength by ratio; CCITT and predictor rows from the dictionary), keeps a per-document budget, fails fast after the first rejection; rejections are checked after `Open`, per page and mapped to 413
+- [x] 3. Word: zip directory checked against the same per-part cap before opening; XML reader cap kept as backstop
+- [x] 4. Web: settings bound through `IOptions` with `ValidateOnStart` (upload limit bounded above by the array ceiling); Kestrel and form limits configured through options; `Redaction:Limits` section
+- [x] 5. Tests: limits validation, filter provider (zlib, PdfPig-style header skip, raw deflate, fast path accounting, predictor, LZW, RunLength, CCITT, total budget, fail-fast), PDF caps at and over the limit, multi-page and xref-stream bombs, Word part cap, startup validation, config binding
+- [x] 6. Docs: README configuration table, ENDUSER messages, CLAUDE.md conventions
+- [x] 7. Review gate: 10 findings (Flate measure not mirroring PdfPig, LZW/predictor/CCITT unbounded, no total budget, swallowed rejection after `Open`, cancellation rewrapped, `MaxCharacters` semantics, upload ceiling, fast path, fail-fast, dead page guard) all fixed
+- [x] 8. Hotfix from a real resume: PDF block lines are joined with newlines so the confidential detector widens to a line, not the whole block (it had swallowed a full section); a second pass on the space-joined text keeps wrapped identifiers (cards, SSNs) detectable, sentence kinds (`InformationKindInfo.WidensToSentence`) sit that pass out, and a sentence widens over any wrapped token it overlaps so no half survives; deterministic multi-line fixture and tests; a second review found two overlap leaks (short sentence losing to a longer wrapped token, token bridging two sentences) fixed by widening to a fixpoint before resolving
+
+## Queue
+
+- [#4](https://github.com/wloescher/DocumentRedaction/issues/4) Redact Word document properties and change-tracking authors
+- [#5](https://github.com/wloescher/DocumentRedaction/issues/5) API key auth, rate limiting, QuestPDF license config
+- [#6](https://github.com/wloescher/DocumentRedaction/issues/6) Heuristic person-name detection
+- [#8](https://github.com/wloescher/DocumentRedaction/issues/8) Position-preserving PDF output (next after #7 merges)
+
+## Done: initial service — [#1](https://github.com/wloescher/DocumentRedaction/issues/1), PR #2
+
+Blazor Server UI plus REST API in one .NET 10 host; pattern-based detection with a pluggable
+detector interface; Word, PDF and text processors; 407 tests at merge.
+
+### Decisions
 - Target `net10.0`; SDK lives at `~/.dotnet` (pinned via `global.json`).
 - Detection kinds map to one or more categories; selecting HIPAA includes PII kinds.
 - Overlap resolution: longest match wins, then kind priority.
 - Placeholder default `[REDACTED-<KIND>]`, configurable.
 - PDF output is regenerated from extracted text (layout simplified); scanned PDFs rejected.
 - Personal names are not detected without NER; custom terms cover them for now.
-
-## Status
-All 13 tasks complete. 407 tests across Core (263), Documents (81) and Web (53) plus fixtures.
-Verified manually in the browser: upload → redact → per-kind summary → download.
-
-## Follow-ups (out of scope for #1)
-- NER-based name/address detection (e.g. Azure AI Language) behind `IDetector`.
-- Layout-preserving PDF redaction.
-- Redact Word core document properties (author, title) and embedded object text.
-- Authentication / rate limiting for the API; QuestPDF license review before commercial use.
-- Decompression limits for PDF parsing (Word already caps part size).
+- Parsing caps are one `DocumentLimits` object shared by Word and PDF; exceeding one is 413. Decoders are bounded before they run wherever the format allows; LZW is held to its ratio.

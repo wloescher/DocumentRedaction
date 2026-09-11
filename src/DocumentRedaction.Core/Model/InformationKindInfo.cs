@@ -9,9 +9,15 @@ namespace DocumentRedaction.Core.Model;
 /// Tie-breaker when two detections of equal length overlap. Lower values win; kinds whose
 /// detectors validate a checksum are ranked ahead of purely pattern-based kinds.
 /// </param>
+/// <param name="WidensToSentence">
+/// True when the detector reports the whole sentence around a marker rather than a token, so a
+/// line break bounds the detection. Processors that join lines to catch wrapped tokens must
+/// leave these kinds out of that pass.
+/// </param>
 public sealed record InformationKindInfo(
     InformationKind Kind,
     string DisplayName,
     string PlaceholderLabel,
     RedactionCategory Categories,
-    int Priority);
+    int Priority,
+    bool WidensToSentence = false);

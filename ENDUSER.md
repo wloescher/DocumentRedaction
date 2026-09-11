@@ -37,7 +37,9 @@ PDFs through OCR first.
 - **Text files** keep their line endings and encoding; only the redacted spans change.
 - **Word files** keep their formatting, tables, headers, footers, footnotes and comments. Links
   whose address contained sensitive data now point to `about:blank`.
-- **PDF files** are rebuilt as text-only pages of the same size and count. Fonts, images and
+- **PDF files** are rebuilt as text-only pages of the same size and count. A confidentiality
+  sentence is removed up to the line breaks around it, so in a bullet list only that bullet
+  goes. A card or ID number inside such a sentence counts once, as the confidential statement. Fonts, images and
   column layouts are not preserved. If a page held more text than fits, it continues onto an
   extra page.
 
@@ -50,6 +52,10 @@ PDFs through OCR first.
 | The PDF is password-protected | Remove the password first. |
 | The PDF contains no extractable text | The PDF is a scan. Run OCR (for example in Acrobat) to add a text layer, then upload the result. |
 | The file exceeds the maximum upload size | Split the document or ask the administrator to raise the limit. |
+| The PDF has N pages; the limit is M | Split the PDF into smaller files, or ask the administrator to raise the page cap. |
+| The text in the PDF exceeds the limit of N characters | Split the PDF, or ask the administrator to raise the text cap. |
+| A stream in the PDF exceeds (or could exceed) the decoded-size limit of N bytes / The PDF exceeds the total decoded-size limit | The file expands far beyond its size when opened. Re-export it from the original application, or ask the administrator to raise the cap. |
+| The part '...' in the Word document is N bytes uncompressed; the limit is M | The document embeds something very large (usually an image or object). Compress or remove it, or ask the administrator to raise the cap. |
 | Select at least one category or supply a custom term | Tick a category or add a custom term. |
 
 ## Using the API instead

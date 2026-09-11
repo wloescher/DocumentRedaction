@@ -1,4 +1,5 @@
 using DocumentRedaction.Core.Model;
+using DocumentRedaction.Core.Redaction;
 
 namespace DocumentRedaction.Core.Tests.Model;
 
@@ -36,4 +37,28 @@ public class InformationKindsTests
     [Fact]
     public void Unknown_kind_throws() =>
         Assert.Throws<ArgumentOutOfRangeException>(() => InformationKinds.Get((InformationKind)999));
+
+    [Fact]
+    public void Only_the_confidential_statement_widens_to_a_sentence()
+    {
+        Assert.Equal([InformationKind.ConfidentialStatement], InformationKinds.SentenceKinds);
+        Assert.True(InformationKinds.Get(InformationKind.ConfidentialStatement).WidensToSentence);
+        Assert.False(InformationKinds.Get(InformationKind.CreditCardNumber).WidensToSentence);
+    }
+
+    [Fact]
+    public void Sentence_kinds_never_cross_a_line_break()
+    {
+        // Processors rely on this flag to bound those detections by line; the detector must agree.
+        const string text = "alpha confidential beta\ngamma delta\nproprietary epsilon";
+        RedactionOptions options = new() { Categories = RedactionCategory.Confidential };
+        IReadOnlyList<Detection> detections = TextRedactor.CreateDefault().Detect(text, options);
+
+        Assert.Equal(2, detections.Count);
+        Assert.All(detections, detection =>
+        {
+            Assert.Contains(detection.Kind, InformationKinds.SentenceKinds);
+            Assert.DoesNotContain('\n', text.AsSpan(detection.Start, detection.Length).ToString());
+        });
+    }
 }

@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using System.Xml;
 using DocumentFormat.OpenXml;
@@ -18,20 +19,16 @@ namespace DocumentRedaction.Documents.Processors;
 /// </summary>
 public sealed class WordDocumentProcessor : IDocumentProcessor
 {
-    /// <summary>
-    /// Upper bound on the decompressed size of any single part, so a small but highly
-    /// compressed upload cannot expand into an unbounded in-memory XML tree.
-    /// </summary>
-    public const long MaxCharactersInPart = 50_000_000;
-
-    private static readonly OpenSettings OpenSettings = new() { MaxCharactersInPart = MaxCharactersInPart };
     private static readonly Uri BlankTarget = new("about:blank");
 
     private readonly ITextRedactor _redactor;
+    private readonly DocumentLimits _limits;
 
-    public WordDocumentProcessor(ITextRedactor redactor)
+    public WordDocumentProcessor(ITextRedactor redactor, DocumentLimits? limits = null)
     {
+        ArgumentNullException.ThrowIfNull(redactor);
         _redactor = redactor;
+        _limits = DocumentLimits.Validated(limits);
     }
 
     public DocumentFormat Format => DocumentFormat.Word;
@@ -58,7 +55,12 @@ public sealed class WordDocumentProcessor : IDocumentProcessor
         RedactionReport report = RedactionReport.Empty;
         try
         {
-            using WordprocessingDocument document = WordprocessingDocument.Open(stream, isEditable: true, OpenSettings);
+            ThrowIfAnyPartExceedsLimit(stream);
+
+            // Backstop for the zip-directory check: the XML reader stops at the same cap, so a
+            // forged directory still cannot expand into an unbounded in-memory tree.
+            OpenSettings openSettings = new() { MaxCharactersInPart = _limits.MaxDecodedBytes };
+            using WordprocessingDocument document = WordprocessingDocument.Open(stream, isEditable: true, openSettings);
             MainDocumentPart main = document.MainDocumentPart
                 ?? throw new InvalidDocumentException("The Word document has no main document part.");
 
@@ -81,6 +83,28 @@ public sealed class WordDocumentProcessor : IDocumentProcessor
         }
 
         return new ProcessedDocument(stream.ToArray(), report);
+    }
+
+    /// <summary>
+    /// A .docx is a zip whose central directory states each part's uncompressed size, so a part
+    /// that would blow past the cap is rejected before anything is inflated. Binary parts are
+    /// held to the same cap as XML parts because the package is rewritten through memory on save.
+    /// </summary>
+    private void ThrowIfAnyPartExceedsLimit(MemoryStream stream)
+    {
+        using (ZipArchive archive = new(stream, ZipArchiveMode.Read, leaveOpen: true))
+        {
+            foreach (ZipArchiveEntry entry in archive.Entries)
+            {
+                if (entry.Length > _limits.MaxDecodedBytes)
+                {
+                    throw new DocumentLimitExceededException(
+                        $"The part '{entry.FullName}' in the Word document is {entry.Length:N0} bytes uncompressed; the limit is {_limits.MaxDecodedBytes:N0}.");
+                }
+            }
+        }
+
+        stream.Position = 0;
     }
 
     private static IEnumerable<OpenXmlPart> TextBearingParts(MainDocumentPart main)

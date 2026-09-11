@@ -22,14 +22,21 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
   is `AddDocumentRedaction()` in Documents.
 - Every `InformationKind` needs a catalog entry in `InformationKinds`, a detector registered in
   `DetectorRegistry`, and tests for positives, negatives and checksum edges. A Core test fails
-  if a kind has no detector.
+  if a kind has no detector. A detector that widens to the surrounding sentence must set
+  `WidensToSentence` on its catalog entry and stop at line breaks; the PDF processor relies on
+  both when it joins block lines to catch wrapped identifiers.
 - Detections carry matched text for tests only. Never log detection text or document content.
 - Test fixtures are built in memory (`tests/DocumentRedaction.Tests.Fixtures`); do not add binary
   .docx/.pdf files to the repo.
 - Keyword-anchored detectors report only the `value` capture group so the keyword stays in the
   document.
+- Parsing caps live in `DocumentLimits` (Documents) and are bound from `Redaction:Limits`. Web
+  reads settings only through `IOptions<RedactionSettings>`; never read `builder.Configuration`
+  eagerly in `Program.cs`, because test hosts add configuration after that point.
 
 ## Work tracking
 
-Issue #1 on GitHub tracks the initial build; TASKS.md holds the checklist. Reference the issue
-in commit messages (`Refs #1`, `Closes #1`).
+Issue #1 tracked the initial build (merged in PR #2). Each follow-up has its own issue, branch
+and PR: #3 PDF parsing caps, #4 Word metadata, #5 API key and rate limiting, #6 person-name
+detection. TASKS.md holds the checklist for the issue in progress plus the queue. Reference the
+issue in commit messages (`Refs #<n>`, `Closes #<n>`).

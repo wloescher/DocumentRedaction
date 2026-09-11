@@ -2,19 +2,27 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using DocumentRedaction.Documents;
 using DocumentRedaction.Tests.Fixtures;
+using DocumentRedaction.Web;
 using DocumentRedaction.Web.Api;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DocumentRedaction.Web.Tests.Api;
 
 public class RedactionApiTests : IClassFixture<RedactionApiFixture>
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private readonly RedactionApiFixture _fixture;
     private readonly HttpClient _client;
 
     public RedactionApiTests(RedactionApiFixture fixture)
     {
+        _fixture = fixture;
         _client = fixture.CreateClient();
     }
 
@@ -190,6 +198,42 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         ProblemDetails? problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Json, TestContext.Current.CancellationToken);
         Assert.Contains("OCR", problem?.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Document_limits_are_bound_from_configuration()
+    {
+        DocumentLimits limits = _fixture.Services.GetRequiredService<DocumentLimits>();
+        Assert.Equal(RedactionApiFixture.MaxPdfPages, limits.MaxPdfPages);
+        Assert.Equal(DocumentLimits.DefaultMaxTextCharacters, limits.MaxTextCharacters);
+    }
+
+    [Fact]
+    public void Request_body_limits_follow_configuration()
+    {
+        long expected = RedactionApiFixture.MaxUploadBytes + 65_536;
+        Assert.Equal(expected, _fixture.Services.GetRequiredService<IOptions<FormOptions>>().Value.MultipartBodyLengthLimit);
+        Assert.Equal(expected, _fixture.Services.GetRequiredService<IOptions<KestrelServerOptions>>().Value.Limits.MaxRequestBodySize);
+    }
+
+    [Fact]
+    public void Invalid_limits_fail_host_startup()
+    {
+        using MisconfiguredFixture factory = new();
+        Exception ex = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+        Assert.Contains(nameof(DocumentLimits.MaxPdfPages), ex.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Pdf_over_the_page_limit_is_413_with_the_counts()
+    {
+        byte[] pdf = PdfFixture.Build(["one"], ["two"], ["three"]);
+        using HttpResponseMessage response = await PostAsync(RedactionApiFixture.Form(pdf, "long.pdf", "application/pdf"));
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+        ProblemDetails? problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Json, TestContext.Current.CancellationToken);
+        Assert.Contains("3 pages", problem?.Detail, StringComparison.Ordinal);
+        Assert.Contains("limit is 2", problem?.Detail, StringComparison.Ordinal);
     }
 
     [Fact]

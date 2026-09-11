@@ -71,3 +71,21 @@ public sealed class EmptyDocumentException : DocumentRedactionException
     {
     }
 }
+
+/// <summary>The file parsed but exceeds a configured <see cref="DocumentLimits"/> cap (pages, text, decompressed size).</summary>
+public sealed class DocumentLimitExceededException : DocumentRedactionException
+{
+    public DocumentLimitExceededException()
+    {
+    }
+
+    public DocumentLimitExceededException(string message)
+        : base(message)
+    {
+    }
+
+    public DocumentLimitExceededException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

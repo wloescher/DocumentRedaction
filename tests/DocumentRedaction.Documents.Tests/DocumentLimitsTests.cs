@@ -9,7 +9,7 @@ public class DocumentLimitsTests
         limits.Validate();
         Assert.Equal(64L * 1024 * 1024, limits.MaxDecodedBytes);
         Assert.Equal(1024L * 1024 * 1024, limits.MaxTotalDecodedBytes);
-        Assert.Equal(50_000_000, limits.MaxTextCharacters);
+        Assert.Equal(5_000_000, limits.MaxTextCharacters);
         Assert.Equal(2_000, limits.MaxPdfPages);
     }
 

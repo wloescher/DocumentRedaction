@@ -35,13 +35,18 @@ number, SWIFT) require an introducing keyword such as "Passport:".
 - Personal names and free-form addresses are not detected without a named-entity model.
   Use custom terms for names. The `IDetector` interface is the seam for adding an NER provider.
 - Dates under HIPAA are noisy (invoice dates get redacted too); untick the Date kind if needed.
-- PDF output is regenerated from extracted text: page count and sizes survive, fonts, images and
-  multi-column layout do not. Scanned PDFs with no text layer are rejected with a clear error.
+- PDF output is redrawn from the extracted text: every word is placed where it was, at its size,
+  weight and slant, so line breaks, columns, bullets, page sizes and page count survive. Fonts are
+  substituted by generic family (serif, sans-serif, monospace), colours are not kept, and images
+  and vector graphics are dropped. Redacted spans become black boxes labelled with the placeholder
+  (or just the kind, such as EMAIL, when the span is too short for the full label, or nothing when
+  it is too short even for that). Scanned PDFs with no text layer are rejected with a clear error.
 - Bare 10-digit and 9-digit numbers are only reported as NPI or routing numbers when their
   checksum passes, so a small share of unrelated numbers can still be over-redacted.
 - In PDFs a confidentiality sentence is redacted up to the line breaks around it (Word and text
   files know where sentences end; a PDF block often does not). Identifiers wrapped across two
-  lines are still found because detection also runs on the block with its lines joined.
+  lines are still found because detection also runs on the block with its lines joined. Text keeps
+  its direction, whether the page is rotated or a line is set at a slant.
 - Parsing caps (see Configuration) bound decoded size, page count and text. An LZW stream
   larger than `MaxDecodedBytes / 2560` on disk is rejected unread because LZW cannot be measured
   without decoding; such streams are rare outside PDFs from the 1990s.
@@ -120,7 +125,7 @@ All keys live under `Redaction` and are validated at startup; an invalid value s
 | `MaxUploadBytes` | 26214400 (25 MB) | Bounds the in-memory buffer; enforced by the API, the page, Kestrel and the form reader. At most 2,147,418,111 because the upload is buffered into one array. |
 | `Limits:MaxDecodedBytes` | 67108864 (64 MB) | Largest decoded size of one PDF stream or one Word package part. Word checks the zip directory before opening and the XML reader stops at the same cap. PDF streams are bounded before they are decoded: Flate by deflate's 1032:1 ceiling and, above that, a trial inflate that only counts; LZW (2560:1 in PdfPig) and RunLength (64:1) by their ratio; CCITT and predictor rows by the sizes in the stream dictionary. |
 | `Limits:MaxTotalDecodedBytes` | 1073741824 (1 GB) | Budget for all decoding in one PDF, including the trial inflates, so many streams each under the cap cannot monopolise CPU. |
-| `Limits:MaxTextCharacters` | 50000000 | Cap on text extracted from a PDF across all pages. |
+| `Limits:MaxTextCharacters` | 5000000 | Cap on text extracted from a PDF across all pages. Every glyph is kept with its geometry until the pages are redrawn (about 120 bytes per character), so this is also the memory bound per request. |
 | `Limits:MaxPdfPages` | 2000 | PDFs with more pages are rejected before any text is extracted. |
 
 Exceeding a cap returns 413 with the cap in the message. The caps are `DocumentLimits` in the

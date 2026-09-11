@@ -8,7 +8,7 @@ public sealed class DocumentLimits
 {
     public const long DefaultMaxDecodedBytes = 64L * 1024 * 1024;
     public const long DefaultMaxTotalDecodedBytes = 1024L * 1024 * 1024;
-    public const long DefaultMaxTextCharacters = 50_000_000;
+    public const long DefaultMaxTextCharacters = 5_000_000;
     public const int DefaultMaxPdfPages = 2_000;
 
     /// <summary>
@@ -24,7 +24,11 @@ public sealed class DocumentLimits
     /// </summary>
     public long MaxTotalDecodedBytes { get; set; } = DefaultMaxTotalDecodedBytes;
 
-    /// <summary>Cap on the text extracted from a PDF across all pages.</summary>
+    /// <summary>
+    /// Cap on the text extracted from a PDF across all pages. Every glyph is held with its
+    /// geometry until the document is redrawn, roughly 120 bytes per character, so this cap is
+    /// also the bound on memory per request.
+    /// </summary>
     public long MaxTextCharacters { get; set; } = DefaultMaxTextCharacters;
 
     /// <summary>Most pages a PDF may have before it is rejected without extracting any text.</summary>

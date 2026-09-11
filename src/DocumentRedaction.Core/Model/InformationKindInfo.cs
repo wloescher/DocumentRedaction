@@ -14,10 +14,15 @@ namespace DocumentRedaction.Core.Model;
 /// line break bounds the detection. Processors that join lines to catch wrapped tokens must
 /// leave these kinds out of that pass.
 /// </param>
+/// <param name="MetadataOnly">
+/// True for kinds that live in document metadata (an author field) rather than in text. They
+/// have no text detector; document processors redact them by structure and report them by kind.
+/// </param>
 public sealed record InformationKindInfo(
     InformationKind Kind,
     string DisplayName,
     string PlaceholderLabel,
     RedactionCategory Categories,
     int Priority,
-    bool WidensToSentence = false);
+    bool WidensToSentence = false,
+    bool MetadataOnly = false);

@@ -68,7 +68,7 @@ public static class RedactionEndpoints
 
         return outcome switch
         {
-            { Document: { } document } => TypedResults.Ok(new RedactionSummaryDto(document.FileName, document.ContentType, document.Content.Length, ReportDto.From(document.Report))),
+            { Document: { } document } => TypedResults.Ok(new RedactionSummaryDto(document.FileName, document.ContentType, document.Content.Length, ReportDto.From(document.Report, document.Warnings))),
             { Validation: { } problem } => problem,
             { Problem: { } problem } => problem,
             _ => throw new InvalidOperationException("Unexpected outcome."),
@@ -143,7 +143,7 @@ public static class RedactionEndpoints
 
     private static FileContentHttpResult WithReportHeaders(HttpContext httpContext, RedactedDocument document)
     {
-        httpContext.Response.Headers[ReportHeader] = JsonSerializer.Serialize(ReportDto.From(document.Report), HeaderJson);
+        httpContext.Response.Headers[ReportHeader] = JsonSerializer.Serialize(ReportDto.From(document.Report, document.Warnings), HeaderJson);
         httpContext.Response.Headers[TotalHeader] = document.Report.Total.ToString(System.Globalization.CultureInfo.InvariantCulture);
         return TypedResults.Bytes(document.Content, document.ContentType, document.FileName);
     }

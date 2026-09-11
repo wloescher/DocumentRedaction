@@ -61,4 +61,15 @@ public class InformationKindsTests
             Assert.DoesNotContain('\n', text.AsSpan(detection.Start, detection.Length).ToString());
         });
     }
+
+    [Fact]
+    public void Document_author_is_the_only_metadata_kind_and_belongs_to_pii_and_hipaa()
+    {
+        Assert.Equal([InformationKind.DocumentAuthor], InformationKinds.MetadataKinds);
+        InformationKindInfo info = InformationKinds.Get(InformationKind.DocumentAuthor);
+        Assert.True(info.MetadataOnly);
+        Assert.Equal(RedactionCategory.Pii | RedactionCategory.Hipaa, info.Categories);
+        Assert.Contains(InformationKind.DocumentAuthor, new RedactionOptions { Categories = RedactionCategory.Pii }.EffectiveKinds());
+        Assert.DoesNotContain(InformationKind.DocumentAuthor, new RedactionOptions { Categories = RedactionCategory.Financial }.EffectiveKinds());
+    }
 }

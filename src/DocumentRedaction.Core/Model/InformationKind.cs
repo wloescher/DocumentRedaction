@@ -22,4 +22,5 @@ public enum InformationKind
     AccountNumber,
     ConfidentialStatement,
     CustomTerm,
+    DocumentAuthor,
 }

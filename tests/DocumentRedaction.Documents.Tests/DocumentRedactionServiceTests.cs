@@ -114,4 +114,21 @@ public class DocumentRedactionServiceTests
         ServiceProvider provider = new ServiceCollection().AddDocumentRedaction(_ => new DocumentLimits { MaxDecodedBytes = 0 }).BuildServiceProvider();
         Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IDocumentProcessorResolver>());
     }
+
+    [Fact]
+    public async Task Warnings_pass_through_from_the_processor()
+    {
+        byte[] docx = WordFixture.Build(main =>
+        {
+            main.Document!.Body!.Append(WordFixture.Paragraph("body"));
+            WordFixture.AddEmbeddedObject(main);
+        });
+        using MemoryStream input = new(docx);
+
+        RedactedDocument result = await Create().RedactAsync(input, "memo.docx", null, new RedactionOptions());
+
+        Assert.Single(result.Warnings);
+        using MemoryStream plain = new(Encoding.UTF8.GetBytes("nothing"));
+        Assert.Empty((await Create().RedactAsync(plain, "a.txt", "text/plain", new RedactionOptions())).Warnings);
+    }
 }

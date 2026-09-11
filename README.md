@@ -20,7 +20,7 @@ End-user guide: [ENDUSER.md](ENDUSER.md).
 
 | Category | Kinds |
 |---|---|
-| PII | SSN, email, phone, IP address, passport, driver's license, street address |
+| PII | SSN, email, phone, IP address, passport, driver's license, street address, document author (Word metadata, comments, tracked changes) |
 | HIPAA / PHI | everything in PII plus MRN, health plan / Medicare beneficiary ID, NPI, DEA number, dates |
 | Financial | credit card (Luhn), ABA routing number, IBAN (mod-97), SWIFT/BIC, account number |
 | Confidential | whole sentences containing markers such as "confidential", "proprietary", "internal use only", "trade secret" |
@@ -114,7 +114,8 @@ curl -sS -o report-redacted.docx -D - \
 ```
 
 Errors use RFC 9457 problem details: 400 validation, 413 upload too large or over a parsing cap,
-415 unsupported type, 422 corrupt, encrypted, or text-free document.
+415 unsupported type, 422 corrupt, encrypted, or text-free document. The report (header and
+summary JSON) carries `warnings`, currently used for embedded objects a Word file contains.
 
 ## Configuration
 
@@ -131,8 +132,21 @@ All keys live under `Redaction` and are validated at startup; an invalid value s
 Exceeding a cap returns 413 with the cap in the message. The caps are `DocumentLimits` in the
 Documents project; other hosts pass a factory to `AddDocumentRedaction` and validate at startup.
 
+## Word metadata
+
+Besides the text, a .docx names people in places a reader never sees. With PII or HIPAA selected,
+the creator and last editor in the core properties, the manager in the application properties,
+and the author on every comment and tracked change in any part (body, headers, footnotes, styles,
+numbering, glossary) are replaced with the document-author placeholder and counted under
+"Document author"; initials are removed and the reviewer list (`people.xml`) is deleted. Untick
+that kind to keep them. Title, subject, keywords, description, company and string-valued custom
+properties go through the ordinary detectors. Embedded objects (OLE, embedded Office files),
+imported HTML/RTF chunks and SmartArt are not opened; the response lists them as warnings so
+nobody assumes they were scanned.
+
 ## Extending detection
 
 Implement `IDetector` (or derive from `RegexDetector`), add the kind to `InformationKind` and
 `InformationKinds`, and register the detector in `DetectorRegistry`. A test in Core fails if a
-kind has no detector.
+text kind has no detector; kinds flagged `MetadataOnly` are the exception, redacted by document
+processors from structure rather than text.

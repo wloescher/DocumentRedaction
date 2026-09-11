@@ -53,6 +53,7 @@ public sealed class WordDocumentProcessor : IDocumentProcessor
         stream.Position = 0;
 
         RedactionReport report = RedactionReport.Empty;
+        IReadOnlyList<string> warnings = [];
         try
         {
             ThrowIfAnyPartExceedsLimit(stream);
@@ -75,6 +76,10 @@ public sealed class WordDocumentProcessor : IDocumentProcessor
                 report = report.Merge(RedactHyperlinkTargets(part, options));
             }
 
+            WordMetadataRedactor.Result metadata = new WordMetadataRedactor(_redactor, options).Redact(document, cancellationToken);
+            report = report.Merge(metadata.Report);
+            warnings = metadata.Warnings;
+
             document.Save();
         }
         catch (Exception ex) when (ex is OpenXmlPackageException or FileFormatException or InvalidDataException or IOException or XmlException)
@@ -82,7 +87,7 @@ public sealed class WordDocumentProcessor : IDocumentProcessor
             throw new InvalidDocumentException("The file is not a valid Word (.docx) document.", ex);
         }
 
-        return new ProcessedDocument(stream.ToArray(), report);
+        return new ProcessedDocument(stream.ToArray(), report, warnings);
     }
 
     /// <summary>

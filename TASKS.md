@@ -1,25 +1,26 @@
 # TASKS — Document Redaction service
 
-## In progress: position-preserving PDF output — [#8](https://github.com/wloescher/DocumentRedaction/issues/8)
+## In progress: Word metadata — [#4](https://github.com/wloescher/DocumentRedaction/issues/4)
 
-Branch: `feature/8-pdf-layout`
+Branch: `feature/4-word-metadata`
 
-Regenerated PDFs reflowed every block as prose: bullets stacked apart from their items, headings
-merged with the next line, and dense pages spilled onto extra pages. Every word is now drawn where
-PdfPig found it, and redacted spans become labelled black boxes.
+Redacted .docx files still named people in the file properties, on comments and tracked changes,
+and in the reviewer list, and embedded objects passed through silently.
 
-- [x] 1. Page model: words with baseline, box, point size, bold/italic and font family class per page; blocks and lines from Docstrum for detection
-- [x] 2. Letter-level redaction mapping: detection spans → covered letters (ink plus advance); uncovered runs stay as text with a trailing space glyph so the text layer keeps word boundaries; covered runs become one box per line with the placeholder label shrunk to fit, falling back to the kind label, then no label
-- [x] 3. SVG rendering per page at the original size (QuestPDF `Svg`), one text element per glyph at its source position, text escaped via XML, generic font families, every glyph rotated along its own baseline so rotated pages and slanted lines keep their direction
-- [x] 4. Tests: positions/sizes/styles preserved within tolerance, page count never grows, bullets stay beside items, keyword survives when its value shares the word, redaction box covers the original span, rotated page, font family mapping; existing text-based tests still pass
-- [x] 5. Docs: README limitations and how-it-works, ENDUSER output description, TASKS.md
-- [x] 6. Review gate: cleanup pass applied (dead code, block text computed once, shared label style, extractor tests for crop and slant); line scan hardened rendering (XML-safe glyph text, non-finite geometry skipped, render failures mapped to 422); removed-behaviour pass clean, `MaxTextCharacters` default lowered to 5 M because glyph geometry is now held per character
+- [x] 1. Core: `InformationKind.DocumentAuthor` (PII and HIPAA) flagged `MetadataOnly`, so it needs no text detector; catalog and registry tests
+- [x] 2. Word: `WordMetadataRedactor` replaces creator, last editor, manager and every `w:author` in any package part (body, headers, footnotes, comments, styles, numbering, glossary; initials dropped) and removes the people part when the kind is selected; title, subject, keywords, description, company and string custom properties go through the text detectors
+- [x] 3. Warnings: `ProcessedDocument`/`RedactedDocument` carry warnings; embedded objects (anywhere in the package) and imported HTML/RTF chunks or SmartArt are counted and reported; API report and summary include `warnings`; the page lists them
+- [x] 4. Tests: every property path, exclusion and category selection, comment/insert/delete/format-change authors, headers, people part, embedded object untouched, placeholder format; existing comment test updated for the counted author
+- [x] 5. Docs (README Word metadata section, ENDUSER, CLAUDE.md) and review gate: correctness pass found authors in styles/numbering/glossary unscrubbed and imported chunks/SmartArt unflagged (fixed by scanning every package part and a second warning); cleanup pass applied (author counter instead of synthetic detections, one source of truth for metadata kinds, fixture package-open helper, warning colour token, extra tests)
 
 ## Queue
 
-- [#4](https://github.com/wloescher/DocumentRedaction/issues/4) Redact Word document properties and change-tracking authors
 - [#5](https://github.com/wloescher/DocumentRedaction/issues/5) API key auth, rate limiting, QuestPDF license config
 - [#6](https://github.com/wloescher/DocumentRedaction/issues/6) Heuristic person-name detection
+
+## Done: position-preserving PDF output — [#8](https://github.com/wloescher/DocumentRedaction/issues/8), PR #9
+
+Every glyph drawn where PdfPig found it, labelled black boxes over redacted spans, rotated and slanted text kept. 522 tests at merge.
 
 ## Done: parsing caps — [#3](https://github.com/wloescher/DocumentRedaction/issues/3), PR #7
 

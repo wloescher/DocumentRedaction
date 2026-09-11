@@ -10,7 +10,8 @@ public class DetectorRegistryTests
     {
         var detectors = DetectorRegistry.CreateDefaultDetectors();
         DetectorRegistry.EnsureComplete(detectors);
-        Assert.Equal(Enum.GetValues<InformationKind>().Order(), detectors.Select(d => d.Kind).Order());
+        IEnumerable<InformationKind> textKinds = Enum.GetValues<InformationKind>().Where(kind => !InformationKinds.MetadataKinds.Contains(kind));
+        Assert.Equal(textKinds.Order(), detectors.Select(d => d.Kind).Order());
     }
 
     [Fact]
@@ -20,4 +21,8 @@ public class DetectorRegistryTests
         var ex = Assert.Throws<InvalidOperationException>(() => DetectorRegistry.EnsureComplete(incomplete));
         Assert.Contains("Iban", ex.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Metadata_kinds_need_no_detector() =>
+        DetectorRegistry.EnsureComplete(DetectorRegistry.CreateDefaultDetectors().Where(d => d.Kind != InformationKind.DocumentAuthor).ToList());
 }

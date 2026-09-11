@@ -13,12 +13,13 @@ public sealed record CategoryDto(string Category, string DisplayName, string Des
         info.Kinds.Select(kind => new KindDto(kind.Kind.ToString(), kind.DisplayName, kind.PlaceholderLabel)).ToList());
 }
 
-public sealed record ReportDto(int Total, IReadOnlyDictionary<string, int> CountsByKind)
+public sealed record ReportDto(int Total, IReadOnlyDictionary<string, int> CountsByKind, IReadOnlyList<string> Warnings)
 {
-    public static ReportDto From(RedactionReport report) => new(
+    public static ReportDto From(RedactionReport report, IReadOnlyList<string> warnings) => new(
         report.Total,
         report.CountsByKind.OrderBy(pair => pair.Key.ToString(), StringComparer.Ordinal)
-            .ToDictionary(pair => pair.Key.ToString(), pair => pair.Value, StringComparer.Ordinal));
+            .ToDictionary(pair => pair.Key.ToString(), pair => pair.Value, StringComparer.Ordinal),
+        warnings);
 }
 
 public sealed record RedactionSummaryDto(string FileName, string ContentType, long SizeBytes, ReportDto Report);

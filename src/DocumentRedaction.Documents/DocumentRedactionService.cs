@@ -40,7 +40,8 @@ public sealed class DocumentRedactionService : IDocumentRedactionService
             processed.Content,
             processor.OutputContentType,
             OutputFileName(fileName, processor.OutputExtension),
-            processed.Report);
+            processed.Report,
+            processed.Warnings);
     }
 
     /// <summary>"report.docx" becomes "report-redacted.docx"; the processor decides the extension.</summary>

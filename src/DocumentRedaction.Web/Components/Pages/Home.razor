@@ -106,6 +106,15 @@
                     </tbody>
                 </table>
             }
+            @if (_result.Warnings.Count > 0)
+            {
+                <ul class="warnings" role="status">
+                    @foreach (string warning in _result.Warnings)
+                    {
+                        <li>@warning</li>
+                    }
+                </ul>
+            }
             <button class="primary" @onclick="DownloadAsync" disabled="@_busy">Download @_result.FileName</button>
         </div>
     }

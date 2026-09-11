@@ -212,4 +212,23 @@ public class WordDocumentProcessorTests
         cts.Cancel();
         Assert.Throws<OperationCanceledException>(() => _processor.Redact(WordFixture.WithParagraphs("x"), _options, cts.Token));
     }
+
+    [Fact]
+    public void Part_over_the_character_limit_is_rejected_as_limit_exceeded()
+    {
+        byte[] input = WordFixture.WithParagraphs(Enumerable.Repeat("Some ordinary paragraph text that adds up.", 50).ToArray());
+        WordDocumentProcessor processor = new(TextRedactor.CreateDefault(), new DocumentLimits { MaxDecodedBytes = 500 });
+
+        DocumentLimitExceededException ex = Assert.Throws<DocumentLimitExceededException>(() => processor.Redact(input, new RedactionOptions()));
+        Assert.Contains("'word/document.xml'", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("bytes uncompressed; the limit is 500.", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Part_at_default_limit_passes() =>
+        Assert.NotNull(new WordDocumentProcessor(TextRedactor.CreateDefault(), new DocumentLimits()).Redact(WordFixture.WithParagraphs("x"), new RedactionOptions()));
+
+    [Fact]
+    public void Invalid_limits_are_rejected_at_construction() =>
+        Assert.Throws<InvalidOperationException>(() => new WordDocumentProcessor(TextRedactor.CreateDefault(), new DocumentLimits { MaxDecodedBytes = 0 }));
 }

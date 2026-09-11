@@ -39,6 +39,9 @@ number, SWIFT) require an introducing keyword such as "Passport:".
   multi-column layout do not. Scanned PDFs with no text layer are rejected with a clear error.
 - Bare 10-digit and 9-digit numbers are only reported as NPI or routing numbers when their
   checksum passes, so a small share of unrelated numbers can still be over-redacted.
+- Parsing caps (see Configuration) bound decoded size, page count and text. An LZW stream
+  larger than `MaxDecodedBytes / 2560` on disk is rejected unread because LZW cannot be measured
+  without decoding; such streams are rare outside PDFs from the 1990s.
 
 ## Layout
 
@@ -102,13 +105,23 @@ curl -sS -o report-redacted.docx -D - \
   http://localhost:5039/api/redact
 ```
 
-Errors use RFC 9457 problem details: 400 validation, 413 too large, 415 unsupported type,
-422 corrupt, encrypted, or text-free document.
+Errors use RFC 9457 problem details: 400 validation, 413 upload too large or over a parsing cap,
+415 unsupported type, 422 corrupt, encrypted, or text-free document.
 
 ## Configuration
 
-`Redaction:MaxUploadBytes` (default 25 MB) bounds the in-memory buffer and is enforced by the
-API, the page, Kestrel and the form reader.
+All keys live under `Redaction` and are validated at startup; an invalid value stops the host.
+
+| Key | Default | Purpose |
+|---|---|---|
+| `MaxUploadBytes` | 26214400 (25 MB) | Bounds the in-memory buffer; enforced by the API, the page, Kestrel and the form reader. At most 2,147,418,111 because the upload is buffered into one array. |
+| `Limits:MaxDecodedBytes` | 67108864 (64 MB) | Largest decoded size of one PDF stream or one Word package part. Word checks the zip directory before opening and the XML reader stops at the same cap. PDF streams are bounded before they are decoded: Flate by deflate's 1032:1 ceiling and, above that, a trial inflate that only counts; LZW (2560:1 in PdfPig) and RunLength (64:1) by their ratio; CCITT and predictor rows by the sizes in the stream dictionary. |
+| `Limits:MaxTotalDecodedBytes` | 1073741824 (1 GB) | Budget for all decoding in one PDF, including the trial inflates, so many streams each under the cap cannot monopolise CPU. |
+| `Limits:MaxTextCharacters` | 50000000 | Cap on text extracted from a PDF across all pages. |
+| `Limits:MaxPdfPages` | 2000 | PDFs with more pages are rejected before any text is extracted. |
+
+Exceeding a cap returns 413 with the cap in the message. The caps are `DocumentLimits` in the
+Documents project; other hosts pass a factory to `AddDocumentRedaction` and validate at startup.
 
 ## Extending detection
 

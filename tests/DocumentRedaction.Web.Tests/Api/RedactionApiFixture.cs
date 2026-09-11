@@ -9,15 +9,20 @@ namespace DocumentRedaction.Web.Tests.Api;
 public sealed class RedactionApiFixture : WebApplicationFactory<Program>
 {
     public const long MaxUploadBytes = 200_000;
+    public const int MaxPdfPages = 2;
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        ConfigureHost(builder, new Dictionary<string, string?>
+        {
+            ["Redaction:MaxUploadBytes"] = MaxUploadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["Redaction:Limits:MaxPdfPages"] = MaxPdfPages.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
+
+    /// <summary>Development environment plus the given settings layered over appsettings.json.</summary>
+    public static void ConfigureHost(IWebHostBuilder builder, Dictionary<string, string?> settings)
     {
         builder.UseEnvironment("Development");
-        builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Redaction:MaxUploadBytes"] = MaxUploadBytes.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            }));
+        builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(settings));
     }
 
     /// <summary>Builds the multipart body the /api/redact endpoints expect.</summary>
@@ -66,4 +71,11 @@ public sealed class RedactionApiFixture : WebApplicationFactory<Program>
 
         return form;
     }
+}
+
+/// <summary>A host whose limits are invalid, to prove misconfiguration fails at startup rather than on the first upload.</summary>
+public sealed class MisconfiguredFixture : WebApplicationFactory<Program>
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        RedactionApiFixture.ConfigureHost(builder, new Dictionary<string, string?> { ["Redaction:Limits:MaxPdfPages"] = "0" });
 }

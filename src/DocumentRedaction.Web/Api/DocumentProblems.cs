@@ -11,6 +11,7 @@ public static class DocumentProblems
         UnsupportedDocumentFormatException => StatusCodes.Status415UnsupportedMediaType,
         InvalidDocumentException => StatusCodes.Status422UnprocessableEntity,
         EmptyDocumentException => StatusCodes.Status422UnprocessableEntity,
+        DocumentLimitExceededException => StatusCodes.Status413PayloadTooLarge,
         _ => StatusCodes.Status400BadRequest,
     };
 

@@ -1,5 +1,6 @@
 using System.Text;
 using DocumentRedaction.Core.Model;
+using DocumentRedaction.Documents.Processors;
 using DocumentRedaction.Tests.Fixtures;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -88,5 +89,29 @@ public class DocumentRedactionServiceTests
     {
         IDocumentProcessorResolver resolver = new ServiceCollection().AddDocumentRedaction().BuildServiceProvider().GetRequiredService<IDocumentProcessorResolver>();
         Assert.Equal([DocumentFormat.PlainText, DocumentFormat.Word, DocumentFormat.Pdf], resolver.Processors.Select(p => p.Format));
+    }
+
+    [Fact]
+    public void Default_limits_are_registered_when_none_given()
+    {
+        ServiceProvider provider = new ServiceCollection().AddDocumentRedaction().BuildServiceProvider();
+        Assert.Equal(DocumentLimits.DefaultMaxPdfPages, provider.GetRequiredService<DocumentLimits>().MaxPdfPages);
+    }
+
+    [Fact]
+    public void Factory_limits_reach_the_processors()
+    {
+        DocumentLimits limits = new() { MaxPdfPages = 1 };
+        ServiceProvider provider = new ServiceCollection().AddDocumentRedaction(_ => limits).BuildServiceProvider();
+        Assert.Same(limits, provider.GetRequiredService<DocumentLimits>());
+        PdfDocumentProcessor pdf = Assert.Single(provider.GetServices<IDocumentProcessor>().OfType<PdfDocumentProcessor>());
+        Assert.Throws<DocumentLimitExceededException>(() => pdf.Redact(PdfFixture.Build(["a"], ["b"]), new RedactionOptions()));
+    }
+
+    [Fact]
+    public void Invalid_factory_limits_fail_when_a_processor_is_resolved()
+    {
+        ServiceProvider provider = new ServiceCollection().AddDocumentRedaction(_ => new DocumentLimits { MaxDecodedBytes = 0 }).BuildServiceProvider();
+        Assert.Throws<InvalidOperationException>(() => provider.GetRequiredService<IDocumentProcessorResolver>());
     }
 }

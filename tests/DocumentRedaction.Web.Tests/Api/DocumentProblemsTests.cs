@@ -13,6 +13,7 @@ public class DocumentProblemsTests
         Assert.Equal(StatusCodes.Status415UnsupportedMediaType, DocumentProblems.StatusCodeFor(new UnsupportedDocumentFormatException("x")));
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, DocumentProblems.StatusCodeFor(new InvalidDocumentException("x")));
         Assert.Equal(StatusCodes.Status422UnprocessableEntity, DocumentProblems.StatusCodeFor(new EmptyDocumentException("x")));
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, DocumentProblems.StatusCodeFor(new DocumentLimitExceededException("x")));
         Assert.Equal(StatusCodes.Status400BadRequest, DocumentProblems.StatusCodeFor(new DocumentRedactionException("x")));
     }
 

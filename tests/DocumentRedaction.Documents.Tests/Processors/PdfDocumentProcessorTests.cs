@@ -82,4 +82,94 @@ public class PdfDocumentProcessorTests
         cts.Cancel();
         Assert.Throws<OperationCanceledException>(() => _processor.Redact(PdfFixture.Build(["x"]), _options, cts.Token));
     }
+
+    private static PdfDocumentProcessor WithLimits(Action<DocumentLimits> configure)
+    {
+        DocumentLimits limits = new();
+        configure(limits);
+        return new PdfDocumentProcessor(TextRedactor.CreateDefault(), limits);
+    }
+
+    [Fact]
+    public void Pages_over_the_limit_are_rejected_with_the_counts()
+    {
+        byte[] input = PdfFixture.Build(["one"], ["two"], ["three"]);
+        DocumentLimitExceededException ex = Assert.Throws<DocumentLimitExceededException>(
+            () => WithLimits(l => l.MaxPdfPages = 2).Redact(input, _options));
+
+        Assert.Contains("3 pages", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("limit is 2", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Pages_at_the_limit_pass()
+    {
+        byte[] input = PdfFixture.Build(["one"], ["two"], ["three"]);
+        Assert.Equal(3, PdfFixture.ReadPageTexts(WithLimits(l => l.MaxPdfPages = 3).Redact(input, _options).Content).Count);
+    }
+
+    [Fact]
+    public void Text_over_the_limit_across_pages_is_rejected()
+    {
+        byte[] input = PdfFixture.Build(["abc"], ["cde"]);
+        DocumentLimitExceededException ex = Assert.Throws<DocumentLimitExceededException>(
+            () => WithLimits(l => l.MaxTextCharacters = 5).Redact(input, _options));
+
+        Assert.Contains("limit of 5 characters", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Text_at_the_limit_passes()
+    {
+        byte[] input = PdfFixture.Build(["ab"], ["cde"]);
+        Assert.Equal(2, PdfFixture.ReadPageTexts(WithLimits(l => l.MaxTextCharacters = 5).Redact(input, _options).Content).Count);
+    }
+
+    [Fact]
+    public void Flate_bomb_over_the_stream_limit_is_rejected()
+    {
+        byte[] input = PdfFixture.FlateBomb(4 * 1024 * 1024);
+        Assert.True(input.Length < 64 * 1024, "the bomb should be small on disk");
+
+        DocumentLimitExceededException ex = Assert.Throws<DocumentLimitExceededException>(
+            () => WithLimits(l => l.MaxDecodedBytes = 1024 * 1024).Redact(input, _options));
+
+        Assert.Contains("decoded-size limit of 1,048,576", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Flate_stream_within_the_limit_is_parsed_normally()
+    {
+        // Whitespace-only content: parses fine, then fails as text-free rather than as over-limit.
+        byte[] input = PdfFixture.FlateBomb(100 * 1024);
+        Assert.Throws<EmptyDocumentException>(() => WithLimits(l => l.MaxDecodedBytes = 200 * 1024).Redact(input, _options));
+    }
+
+    [Fact]
+    public void Many_streams_under_the_stream_cap_are_still_bounded_by_the_total()
+    {
+        byte[] input = PdfFixture.FlateBomb(1024 * 1024, pages: 4);
+
+        DocumentLimitExceededException ex = Assert.Throws<DocumentLimitExceededException>(
+            () => WithLimits(l => { l.MaxDecodedBytes = 2 * 1024 * 1024; l.MaxTotalDecodedBytes = 3 * 1024 * 1024; }).Redact(input, _options));
+
+        Assert.Contains("total decoded-size limit of 3,145,728", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Bomb_in_the_xref_stream_is_reported_as_over_limit_not_as_empty()
+    {
+        // PdfPig swallows the failure while reading the xref stream and recovers a zero-page document.
+        byte[] input = PdfFixture.XrefStreamBomb(4 * 1024 * 1024);
+
+        Assert.Throws<DocumentLimitExceededException>(() => WithLimits(l => l.MaxDecodedBytes = 1024 * 1024).Redact(input, _options));
+    }
+
+    [Fact]
+    public void Invalid_limits_are_rejected_at_construction() =>
+        Assert.Throws<InvalidOperationException>(() => new PdfDocumentProcessor(TextRedactor.CreateDefault(), new DocumentLimits { MaxPdfPages = 0 }));
+
+    [Fact]
+    public void Null_redactor_is_rejected() =>
+        Assert.Throws<ArgumentNullException>(() => new PdfDocumentProcessor(null!));
 }

@@ -16,7 +16,8 @@ namespace DocumentRedaction.Documents.Processors;
 /// PDF files. Text is extracted with PdfPig, grouped into paragraph blocks in reading order,
 /// redacted, and written to a brand-new PDF with QuestPDF. The original text is therefore
 /// gone rather than hidden, at the cost of original fonts, images and column layout.
-/// Page sizes and page count are carried over. PDFs with no text layer are rejected.
+/// Page sizes and page count are carried over. PDFs with no text layer are rejected, as are
+/// PDFs that exceed the <see cref="DocumentLimits"/> page, text or decompressed-stream caps.
 /// </summary>
 public sealed class PdfDocumentProcessor : IDocumentProcessor
 {
@@ -25,6 +26,7 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
     private const float ParagraphSpacingPoints = 8;
 
     private readonly ITextRedactor _redactor;
+    private readonly DocumentLimits _limits;
 
     static PdfDocumentProcessor()
     {
@@ -33,9 +35,11 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
         QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
     }
 
-    public PdfDocumentProcessor(ITextRedactor redactor)
+    public PdfDocumentProcessor(ITextRedactor redactor, DocumentLimits? limits = null)
     {
+        ArgumentNullException.ThrowIfNull(redactor);
         _redactor = redactor;
+        _limits = DocumentLimits.Validated(limits);
     }
 
     public DocumentFormat Format => DocumentFormat.Pdf;
@@ -78,19 +82,54 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
         return new ProcessedDocument(Render(redacted), report);
     }
 
-    private static List<PageContent> Extract(ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+    private List<PageContent> Extract(ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
     {
+        BoundedFilterProvider filters = new(_limits.MaxDecodedBytes, _limits.MaxTotalDecodedBytes);
+        ParsingOptions parsingOptions = new() { FilterProvider = filters };
         try
         {
-            using PdfDocument document = PdfDocument.Open(content.ToArray());
+            using PdfDocument document = PdfDocument.Open(content, parsingOptions);
+
+            // PdfPig swallows filter errors while reading xref streams and falls back to a scan.
+            filters.ThrowIfLimitExceeded();
+
+            // The count is the walked page tree, so it is exactly what GetPages will yield.
+            if (document.NumberOfPages > _limits.MaxPdfPages)
+            {
+                throw new DocumentLimitExceededException(
+                    $"The PDF has {document.NumberOfPages:N0} pages; the limit is {_limits.MaxPdfPages:N0}.");
+            }
+
             List<PageContent> pages = [];
+            long characters = 0;
             foreach (Page page in document.GetPages())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                pages.Add(new PageContent((float)page.Width, (float)page.Height, ExtractParagraphs(page)));
+
+                List<string> paragraphs = ExtractParagraphs(page);
+                filters.ThrowIfLimitExceeded();
+
+                foreach (string paragraph in paragraphs)
+                {
+                    characters += paragraph.Length;
+                }
+
+                if (characters > _limits.MaxTextCharacters)
+                {
+                    throw new DocumentLimitExceededException(
+                        $"The text in the PDF exceeds the limit of {_limits.MaxTextCharacters:N0} characters.");
+                }
+
+                pages.Add(new PageContent((float)page.Width, (float)page.Height, paragraphs));
             }
 
             return pages;
+        }
+        catch (Exception ex) when (filters.Rejection is { } rejection
+            && ex is not (DocumentLimitExceededException or OperationCanceledException or OutOfMemoryException))
+        {
+            // PdfPig wrapped or swallowed the filter's rejection; surface the cap, not a parse error.
+            throw new DocumentLimitExceededException(rejection.Message, ex);
         }
         catch (PdfDocumentEncryptedException ex)
         {

@@ -16,7 +16,7 @@ namespace DocumentRedaction.Web.Tests.Api;
 
 public class RedactionApiTests : IClassFixture<RedactionApiFixture>
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions Json = RedactionApiFixture.Json;
     private readonly RedactionApiFixture _fixture;
     private readonly HttpClient _client;
 
@@ -201,9 +201,8 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
     {
         using HttpResponseMessage response = await PostAsync(RedactionApiFixture.Form(Text("x"), "sheet.xlsx", "application/octet-stream"));
 
-        Assert.Equal(HttpStatusCode.UnsupportedMediaType, response.StatusCode);
-        ProblemDetails? problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Json, TestContext.Current.CancellationToken);
-        Assert.Contains(".docx", problem?.Detail, StringComparison.Ordinal);
+        ProblemDetails problem = await RedactionApiFixture.Problem(response, HttpStatusCode.UnsupportedMediaType);
+        Assert.Contains(".docx", problem.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -218,9 +217,8 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
     {
         using HttpResponseMessage response = await PostAsync(RedactionApiFixture.Form(PdfFixture.BlankPage(), "scan.pdf", "application/pdf"));
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        ProblemDetails? problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Json, TestContext.Current.CancellationToken);
-        Assert.Contains("OCR", problem?.Detail, StringComparison.Ordinal);
+        ProblemDetails problem = await RedactionApiFixture.Problem(response, HttpStatusCode.UnprocessableEntity);
+        Assert.Contains("OCR", problem.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -242,7 +240,7 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
     [Fact]
     public void Invalid_limits_fail_host_startup()
     {
-        using MisconfiguredFixture factory = new();
+        using ConfiguredFixture factory = new(new Dictionary<string, string?> { ["Redaction:Limits:MaxPdfPages"] = "0" });
         Exception ex = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
         Assert.Contains(nameof(DocumentLimits.MaxPdfPages), ex.ToString(), StringComparison.Ordinal);
     }
@@ -253,10 +251,9 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
         byte[] pdf = PdfFixture.Build(["one"], ["two"], ["three"]);
         using HttpResponseMessage response = await PostAsync(RedactionApiFixture.Form(pdf, "long.pdf", "application/pdf"));
 
-        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
-        ProblemDetails? problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Json, TestContext.Current.CancellationToken);
-        Assert.Contains("3 pages", problem?.Detail, StringComparison.Ordinal);
-        Assert.Contains("limit is 2", problem?.Detail, StringComparison.Ordinal);
+        ProblemDetails problem = await RedactionApiFixture.Problem(response, HttpStatusCode.RequestEntityTooLarge);
+        Assert.Contains("3 pages", problem.Detail, StringComparison.Ordinal);
+        Assert.Contains("limit is 2", problem.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -284,6 +281,12 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
         string json = await _client.GetStringAsync("/openapi/v1.json", TestContext.Current.CancellationToken);
         Assert.Contains("/api/redact", json, StringComparison.Ordinal);
         Assert.Contains("/api/categories", json, StringComparison.Ordinal);
+
+        // The group-level key and throttle responses are part of the published contract.
+        using JsonDocument document = JsonDocument.Parse(json);
+        JsonElement responses = document.RootElement.GetProperty("paths").GetProperty("/api/redact").GetProperty("post").GetProperty("responses");
+        Assert.True(responses.TryGetProperty("401", out _));
+        Assert.True(responses.TryGetProperty("429", out _));
     }
 
     [Fact]

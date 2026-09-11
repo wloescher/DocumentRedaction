@@ -16,7 +16,13 @@ public static class RedactionEndpoints
 
     public static IEndpointRouteBuilder MapRedactionApi(this IEndpointRouteBuilder endpoints)
     {
-        RouteGroupBuilder group = endpoints.MapGroup("/api").WithTags("Redaction");
+        // Every API route needs a key (when keys are configured) and shares the throttle; the Blazor page bypasses both.
+        RouteGroupBuilder group = endpoints.MapGroup("/api")
+            .WithTags("Redaction")
+            .AddEndpointFilter<ApiKeyEndpointFilter>()
+            .RequireRateLimiting(ApiRateLimiting.PolicyName)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
 
         group.MapGet("/categories", GetCategories)
             .WithName("GetCategories")
@@ -109,7 +115,7 @@ public static class RedactionEndpoints
         catch (Exception ex) when (ex is InvalidDataException || ex is BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge })
         {
             // The form reader and Kestrel both reject bodies over their limits before we can check the file length.
-            return DocumentProblems.TooLarge(settings.MaxUploadBytes);
+            return ApiProblems.TooLarge(settings.MaxUploadBytes);
         }
 
         (IFormFile? file, RedactionRequest request) = RedactionFormBinder.Read(form);
@@ -127,7 +133,7 @@ public static class RedactionEndpoints
 
         if (file!.Length > settings.MaxUploadBytes)
         {
-            return DocumentProblems.TooLarge(settings.MaxUploadBytes);
+            return ApiProblems.TooLarge(settings.MaxUploadBytes);
         }
 
         try
@@ -137,7 +143,7 @@ public static class RedactionEndpoints
         }
         catch (DocumentRedactionException ex)
         {
-            return DocumentProblems.FromException(ex);
+            return ApiProblems.FromException(ex);
         }
     }
 

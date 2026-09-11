@@ -70,8 +70,10 @@ DocumentRedaction.slnx
 Microsoft.Testing.Platform. If `dotnet --version` reports 8.x, your PATH puts
 `/usr/local/share/dotnet` ahead of `~/.dotnet`; either reorder PATH or call `~/.dotnet/dotnet`.
 
-QuestPDF is used under its Community license, which is free for organisations under the
-revenue threshold published at questpdf.com; review that before commercial deployment.
+QuestPDF renders the redacted PDFs. Its Community license is free for organisations under the
+revenue threshold published at questpdf.com; above it, buy the Professional or Enterprise tier
+and set `Redaction:QuestPdfLicense` accordingly (see Configuration). Review that before
+commercial deployment.
 
 ## Build, test, run
 
@@ -91,6 +93,11 @@ Then open http://localhost:5039. The OpenAPI document is at `/openapi/v1.json`.
 
 ## API
 
+Every `/api` route is gated by an optional API key and a rate limiter (see Configuration). When
+keys are configured, send one in the `X-Api-Key` header; without any configured key the API is
+open and the host logs a warning at startup. The Blazor page calls the service in-process and
+needs neither.
+
 `GET /api/categories` lists categories and the kinds each covers.
 
 `POST /api/redact` takes `multipart/form-data` and returns the redacted file as an attachment.
@@ -108,14 +115,16 @@ Counts by kind are in the `X-Redaction-Report` header (JSON) and `X-Redaction-To
 `POST /api/redact/summary` takes the same form and returns only `{ fileName, contentType, sizeBytes, report }`.
 
 ```bash
-curl -sS -o report-redacted.docx -D - \
+curl -sS -o report-redacted.docx -D - -H "X-Api-Key: $REDACTION_API_KEY" \
   -F "file=@report.docx" -F "categories=pii,financial" -F "excludedKinds=Date" -F "customTerms=Jane Doe" \
   http://localhost:5039/api/redact
 ```
 
-Errors use RFC 9457 problem details: 400 validation, 413 upload too large or over a parsing cap,
-415 unsupported type, 422 corrupt, encrypted, or text-free document. The report (header and
-summary JSON) carries `warnings`, currently used for embedded objects a Word file contains.
+Errors use RFC 9457 problem details: 400 validation, 401 missing or wrong API key, 413 upload
+too large or over a parsing cap, 415 unsupported type, 422 corrupt, encrypted, or text-free
+document, 429 over the rate limit (with a `Retry-After` header in seconds). The report (header
+and summary JSON) carries `warnings`, currently used for embedded objects and imported content
+a Word file contains.
 
 ## Configuration
 
@@ -128,9 +137,17 @@ All keys live under `Redaction` and are validated at startup; an invalid value s
 | `Limits:MaxTotalDecodedBytes` | 1073741824 (1 GB) | Budget for all decoding in one PDF, including the trial inflates, so many streams each under the cap cannot monopolise CPU. |
 | `Limits:MaxTextCharacters` | 5000000 | Cap on text extracted from a PDF across all pages. Every glyph is kept with its geometry until the pages are redrawn (about 120 bytes per character), so this is also the memory bound per request. |
 | `Limits:MaxPdfPages` | 2000 | PDFs with more pages are rejected before any text is extracted. |
+| `ApiKeys` | `[]` (open) | Keys accepted in `X-Api-Key` on `/api`; each at least 16 visible ASCII characters (no spaces), no repeats. Empty leaves the API open and logs a startup warning; a single value instead of a list fails startup. Each key comparison is constant-time; keys are never logged. Supply them through environment variables (`Redaction__ApiKeys__0`, `Redaction__ApiKeys__1`, ...) or a secrets store rather than appsettings.json. |
+| `RateLimit:Enabled` | `true` | Set `false` when a gateway in front of the host throttles instead. |
+| `RateLimit:PermitLimit` | 60 | Requests allowed per window. Each valid API key has its own window; all other callers (open mode, missing or wrong key) share one window per client address, so key guessing is throttled too. |
+| `RateLimit:WindowSeconds` | 60 | Fixed window length, at most 4,294,967. Rejections are 429 with `Retry-After` set to the window length (an upper bound on the wait). |
+| `QuestPdfLicense` | `Community` | `Community`, `Professional` or `Enterprise`; the tier this deployment is entitled to. |
 
 Exceeding a cap returns 413 with the cap in the message. The caps are `DocumentLimits` in the
 Documents project; other hosts pass a factory to `AddDocumentRedaction` and validate at startup.
+The rate limiter keys on the connection's remote address; behind a reverse proxy, configure
+forwarded headers before relying on per-address limits, or disable the limiter and throttle at
+the proxy.
 
 ## Word metadata
 

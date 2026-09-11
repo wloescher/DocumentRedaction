@@ -109,6 +109,18 @@ public class DocumentRedactionServiceTests
     }
 
     [Fact]
+    public void Factory_license_is_applied_when_the_pdf_processor_is_built()
+    {
+        int calls = 0;
+        ServiceProvider provider = new ServiceCollection()
+            .AddDocumentRedaction(pdfLicense: _ => { calls++; return QuestPdfLicense.Professional; })
+            .BuildServiceProvider();
+
+        Assert.Single(provider.GetServices<IDocumentProcessor>().OfType<PdfDocumentProcessor>());
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
     public void Invalid_factory_limits_fail_when_a_processor_is_resolved()
     {
         ServiceProvider provider = new ServiceCollection().AddDocumentRedaction(_ => new DocumentLimits { MaxDecodedBytes = 0 }).BuildServiceProvider();

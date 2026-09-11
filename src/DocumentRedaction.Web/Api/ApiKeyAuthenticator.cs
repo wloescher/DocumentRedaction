@@ -33,6 +33,22 @@ public sealed class ApiKeyAuthenticator
     public bool TryAuthenticate(HttpContext httpContext, out int keyIndex)
     {
         ArgumentNullException.ThrowIfNull(httpContext);
+
+        // The header is fixed for the request but both the rate-limit partition and the endpoint
+        // filter ask, so the result is memoized per request: the constant-time comparison runs once.
+        if (httpContext.Items.TryGetValue(CacheKey, out object? cached) && cached is Outcome outcome)
+        {
+            keyIndex = outcome.KeyIndex;
+            return outcome.Authenticated;
+        }
+
+        bool authenticated = Authenticate(httpContext, out keyIndex);
+        httpContext.Items[CacheKey] = new Outcome(authenticated, keyIndex);
+        return authenticated;
+    }
+
+    private bool Authenticate(HttpContext httpContext, out int keyIndex)
+    {
         keyIndex = -1;
         if (IsOpen)
         {
@@ -58,4 +74,9 @@ public sealed class ApiKeyAuthenticator
 
         return false;
     }
+
+    /// <summary>Key into <see cref="HttpContext.Items"/> for the memoized per-request result.</summary>
+    private static readonly object CacheKey = new();
+
+    private sealed record Outcome(bool Authenticated, int KeyIndex);
 }

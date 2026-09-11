@@ -1,18 +1,12 @@
 # TASKS — Document Redaction service
 
-## In progress: heuristic person-name detection — [#6](https://github.com/wloescher/DocumentRedaction/issues/6)
+## In progress
 
-Branch: `feature/6-person-names`
+Nothing. Every follow-up from the initial build is merged; open a new issue for the next piece of work.
 
-Personal names are not detected; users must type every name as a custom term.
+## Done: heuristic person-name detection — [#6](https://github.com/wloescher/DocumentRedaction/issues/6), PR #12
 
-- [x] 1. Core: `InformationKind.PersonName` (PII and HIPAA, label `NAME`) and a `PersonNameDetector` with three rules: honorific-anchored (Dr., Mr., Ms., Prof., ...), label-anchored (Patient, Name, Attn, Dear, Sincerely, Signed, ...), and first-name-list pairs (curated list as an embedded resource; names that double as English words only count mid-sentence). Trailing non-name words (Date, Street, Inc, months, pronouns) are trimmed, tokens never cross a line break, and "Last, First", initials, suffixes, particles and Mc/O'/hyphen forms are handled
-- [x] 2. Tests: positives per rule, sentence-start and organisation negatives, trimming, line breaks, overlap with custom terms (equal length: custom term wins; longer name wins), category selection, placeholder, API category listing
-- [x] 3. Docs (README kinds and limitations, ENDUSER, CLAUDE.md, TASKS.md) and review gate: correctness pass found same-line salutations swallowing the next word, accented names half-redacted, "General Ledger"/"Employee Handbook" matched as names, honorifics inside label runs and month-named people never found (all fixed: rules split by anchor, Unicode words with trailing guards, separate never-starts/ends-a-name sets); cleanup pass shared street suffixes with the address detector, merged the name lists into one file, simplified the tokeniser and ranked the kind after dates
-
-## Queue
-
-- (empty)
+Honorific, title, form-label, salutation and given-name-list rules; Unicode words; stop words shared with the address detector. 705 tests at merge. Checked against a real resume: no false positives, one miss (a given name not on the list).
 
 ## Done: API key auth, rate limiting, QuestPDF license — [#5](https://github.com/wloescher/DocumentRedaction/issues/5), PR #11
 

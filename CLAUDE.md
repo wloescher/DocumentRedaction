@@ -49,6 +49,6 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
 
 Issue #1 tracked the initial build (merged in PR #2). Each follow-up has its own issue, branch
 and PR: #3 PDF parsing caps (PR #7), #8 position-preserving PDF output (PR #9), #4 Word
-metadata (PR #10), #5 API key and rate limiting (PR #11), #6 person-name detection. TASKS.md
+metadata (PR #10), #5 API key and rate limiting (PR #11), #6 person-name detection (PR #12). TASKS.md
 holds the checklist for the issue in progress plus the queue. Reference the issue in commit
 messages (`Refs #<n>`, `Closes #<n>`).

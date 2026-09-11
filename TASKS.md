@@ -1,27 +1,29 @@
 # TASKS — Document Redaction service
 
-## In progress: parsing caps — [#3](https://github.com/wloescher/DocumentRedaction/issues/3)
+## In progress: position-preserving PDF output — [#8](https://github.com/wloescher/DocumentRedaction/issues/8)
 
-Branch: `feature/3-pdf-limits`
+Branch: `feature/8-pdf-layout`
 
-Guard against decompression bombs and oversized documents. Word already capped part size;
-PDF had no guard at all, and the host read its settings before test configuration applied.
+Regenerated PDFs reflowed every block as prose: bullets stacked apart from their items, headings
+merged with the next line, and dense pages spilled onto extra pages. Every word is now drawn where
+PdfPig found it, and redacted spans become labelled black boxes.
 
-- [x] 1. `DocumentLimits` (max decoded bytes per stream/part, total decoded bytes per PDF, text characters, PDF pages) with validation; DI via `AddDocumentRedaction(factory)`
-- [x] 2. PDF: `BoundedFilterProvider` bounds every PdfPig decoder before it runs (Flate 1032:1 fast path then a counting trial inflate that mirrors PdfPig's two-byte skip; LZW and RunLength by ratio; CCITT and predictor rows from the dictionary), keeps a per-document budget, fails fast after the first rejection; rejections are checked after `Open`, per page and mapped to 413
-- [x] 3. Word: zip directory checked against the same per-part cap before opening; XML reader cap kept as backstop
-- [x] 4. Web: settings bound through `IOptions` with `ValidateOnStart` (upload limit bounded above by the array ceiling); Kestrel and form limits configured through options; `Redaction:Limits` section
-- [x] 5. Tests: limits validation, filter provider (zlib, PdfPig-style header skip, raw deflate, fast path accounting, predictor, LZW, RunLength, CCITT, total budget, fail-fast), PDF caps at and over the limit, multi-page and xref-stream bombs, Word part cap, startup validation, config binding
-- [x] 6. Docs: README configuration table, ENDUSER messages, CLAUDE.md conventions
-- [x] 7. Review gate: 10 findings (Flate measure not mirroring PdfPig, LZW/predictor/CCITT unbounded, no total budget, swallowed rejection after `Open`, cancellation rewrapped, `MaxCharacters` semantics, upload ceiling, fast path, fail-fast, dead page guard) all fixed
-- [x] 8. Hotfix from a real resume: PDF block lines are joined with newlines so the confidential detector widens to a line, not the whole block (it had swallowed a full section); a second pass on the space-joined text keeps wrapped identifiers (cards, SSNs) detectable, sentence kinds (`InformationKindInfo.WidensToSentence`) sit that pass out, and a sentence widens over any wrapped token it overlaps so no half survives; deterministic multi-line fixture and tests; a second review found two overlap leaks (short sentence losing to a longer wrapped token, token bridging two sentences) fixed by widening to a fixpoint before resolving
+- [x] 1. Page model: words with baseline, box, point size, bold/italic and font family class per page; blocks and lines from Docstrum for detection
+- [x] 2. Letter-level redaction mapping: detection spans → covered letters (ink plus advance); uncovered runs stay as text with a trailing space glyph so the text layer keeps word boundaries; covered runs become one box per line with the placeholder label shrunk to fit, falling back to the kind label, then no label
+- [x] 3. SVG rendering per page at the original size (QuestPDF `Svg`), one text element per glyph at its source position, text escaped via XML, generic font families, every glyph rotated along its own baseline so rotated pages and slanted lines keep their direction
+- [x] 4. Tests: positions/sizes/styles preserved within tolerance, page count never grows, bullets stay beside items, keyword survives when its value shares the word, redaction box covers the original span, rotated page, font family mapping; existing text-based tests still pass
+- [x] 5. Docs: README limitations and how-it-works, ENDUSER output description, TASKS.md
+- [x] 6. Review gate: cleanup pass applied (dead code, block text computed once, shared label style, extractor tests for crop and slant); line scan hardened rendering (XML-safe glyph text, non-finite geometry skipped, render failures mapped to 422); removed-behaviour pass clean, `MaxTextCharacters` default lowered to 5 M because glyph geometry is now held per character
 
 ## Queue
 
 - [#4](https://github.com/wloescher/DocumentRedaction/issues/4) Redact Word document properties and change-tracking authors
 - [#5](https://github.com/wloescher/DocumentRedaction/issues/5) API key auth, rate limiting, QuestPDF license config
 - [#6](https://github.com/wloescher/DocumentRedaction/issues/6) Heuristic person-name detection
-- [#8](https://github.com/wloescher/DocumentRedaction/issues/8) Position-preserving PDF output (next after #7 merges)
+
+## Done: parsing caps — [#3](https://github.com/wloescher/DocumentRedaction/issues/3), PR #7
+
+`DocumentLimits` shared by Word and PDF; PdfPig decoders bounded before they run; settings through validated options; PDF block lines joined with newlines plus a wrapped-token pass. 474 tests at merge.
 
 ## Done: initial service — [#1](https://github.com/wloescher/DocumentRedaction/issues/1), PR #2
 

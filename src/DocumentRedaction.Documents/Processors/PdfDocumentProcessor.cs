@@ -1,30 +1,23 @@
 using DocumentRedaction.Core.Model;
 using DocumentRedaction.Core.Redaction;
-using QuestPDF.Fluent;
+using DocumentRedaction.Documents.Processors.Pdf;
 using QuestPDF.Infrastructure;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
-using UglyToad.PdfPig.DocumentLayoutAnalysis;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.PageSegmenter;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.ReadingOrderDetector;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 using UglyToad.PdfPig.Exceptions;
 
 namespace DocumentRedaction.Documents.Processors;
 
 /// <summary>
-/// PDF files. Text is extracted with PdfPig, grouped into paragraph blocks in reading order,
-/// redacted, and written to a brand-new PDF with QuestPDF. The original text is therefore
-/// gone rather than hidden, at the cost of original fonts, images and column layout.
-/// Page sizes and page count are carried over. PDFs with no text layer are rejected, as are
-/// PDFs that exceed the <see cref="DocumentLimits"/> page, text or decompressed-stream caps.
+/// PDF files. Text is extracted with PdfPig together with every glyph's position, redacted one
+/// layout block at a time, and drawn again at the same positions on pages of the original size,
+/// with a labelled black box over each redacted span. The original text is therefore gone
+/// rather than hidden. Fonts are substituted and images are not carried over. PDFs with no text
+/// layer are rejected, as are PDFs over the <see cref="DocumentLimits"/> page, text or
+/// decompressed-stream caps.
 /// </summary>
 public sealed class PdfDocumentProcessor : IDocumentProcessor
 {
-    private const float MarginPoints = 40;
-    private const float FontSizePoints = 11;
-    private const float ParagraphSpacingPoints = 8;
-
     private readonly ITextRedactor _redactor;
     private readonly DocumentLimits _limits;
 
@@ -56,91 +49,49 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        List<PageContent> pages = Extract(content, cancellationToken);
-        if (pages.TrueForAll(page => page.Paragraphs.Count == 0))
+        List<PdfPage> pages = Extract(content, cancellationToken);
+        if (pages.TrueForAll(page => page.Blocks.Count == 0))
         {
             throw new EmptyDocumentException(
                 "The PDF contains no extractable text. Scanned documents need OCR before they can be redacted.");
         }
 
-        // Built once: the custom-term detector caches its regex per options instance.
-        RedactionOptions tokenOptions = options with { ExcludedKinds = options.ExcludedKinds.Union(InformationKinds.SentenceKinds).ToHashSet() };
-
+        PdfBlockRedactor blockRedactor = new(_redactor, options);
         RedactionReport report = RedactionReport.Empty;
-        List<PageContent> redacted = [];
-        foreach (PageContent page in pages)
+        List<PdfRedactedPage> redacted = [];
+        foreach (PdfPage page in pages)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            List<string> paragraphs = [];
-            foreach (string paragraph in page.Paragraphs)
+            List<PdfTextRun> runs = [];
+            List<PdfRedactionBox> boxes = [];
+            foreach (PdfBlock block in page.Blocks)
             {
-                IReadOnlyList<Detection> detections = DetectBlock(paragraph, options, tokenOptions);
-                report = report.Merge(RedactionReport.FromDetections(detections));
-                paragraphs.Add(_redactor.Apply(paragraph, detections, options));
+                PdfBlockRedactor.BlockResult result = blockRedactor.Redact(block);
+                report = report.Merge(RedactionReport.FromDetections(result.Detections));
+                runs.AddRange(result.Runs);
+                boxes.AddRange(result.Boxes);
             }
 
-            redacted.Add(page with { Paragraphs = paragraphs });
+            redacted.Add(new PdfRedactedPage(page.Width, page.Height, runs, boxes));
         }
 
         return new ProcessedDocument(Render(redacted), report);
     }
 
-    /// <summary>
-    /// A block's lines are joined with newlines so sentence-widening detectors stop at a line
-    /// break (a confidentiality marker in a bullet list must not swallow the whole list). A second
-    /// pass over the same text with spaces instead finds an identifier wrapped across two lines,
-    /// such as a card number; <paramref name="tokenOptions"/> leaves the sentence kinds out of it,
-    /// or they would widen to the block. Both strings have identical offsets, so the two sets
-    /// merge directly. Before resolving overlaps, every sentence is widened over each wrapped
-    /// token (and other sentence) it touches, so no half of a token survives on a neighbouring
-    /// line and the sentence cannot lose the overlap to a longer token.
-    /// </summary>
-    private IReadOnlyList<Detection> DetectBlock(string block, RedactionOptions options, RedactionOptions tokenOptions)
+    /// <summary>Drawing can fail on degenerate geometry (a zero-sized media box); that is the file's fault, not a server error.</summary>
+    private static byte[] Render(List<PdfRedactedPage> pages)
     {
-        IReadOnlyList<Detection> byLine = _redactor.Detect(block, options);
-        if (!block.Contains('\n', StringComparison.Ordinal))
+        try
         {
-            return byLine;
+            return PdfSvgRenderer.Render(pages);
         }
-
-        IReadOnlyList<Detection> acrossLines = _redactor.Detect(block.Replace('\n', ' '), tokenOptions);
-        List<Detection> sentences = byLine.Where(found => InformationKinds.SentenceKinds.Contains(found.Kind)).ToList();
-        IEnumerable<Detection> tokens = byLine.Where(found => !InformationKinds.SentenceKinds.Contains(found.Kind)).Concat(acrossLines);
-
-        WidenOverOverlaps(sentences, acrossLines, block);
-        return DetectionResolver.Resolve(tokens.Concat(sentences));
-    }
-
-    /// <summary>
-    /// Grows each sentence to cover every token and sentence it overlaps, repeating until nothing
-    /// grows: a widened sentence can touch a new neighbour. Spans only ever grow, so this ends.
-    /// </summary>
-    private static void WidenOverOverlaps(List<Detection> sentences, IReadOnlyList<Detection> tokens, string block)
-    {
-        bool grew = true;
-        while (grew)
+        catch (Exception ex) when (ex is not (DocumentRedactionException or OperationCanceledException or OutOfMemoryException))
         {
-            grew = false;
-            for (int i = 0; i < sentences.Count; i++)
-            {
-                foreach (Detection other in tokens.Concat(sentences.ToArray()))
-                {
-                    Detection sentence = sentences[i];
-                    if (!sentence.Overlaps(other) || (sentence.Start <= other.Start && other.End <= sentence.End))
-                    {
-                        continue;
-                    }
-
-                    int start = Math.Min(sentence.Start, other.Start);
-                    int end = Math.Max(sentence.End, other.End);
-                    sentences[i] = new Detection(sentence.Kind, start, end - start, block.Substring(start, end - start));
-                    grew = true;
-                }
-            }
+            throw new InvalidDocumentException("The PDF could not be rebuilt after redaction; its page geometry is not usable.", ex);
         }
     }
 
-    private List<PageContent> Extract(ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+    private List<PdfPage> Extract(ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
     {
         BoundedFilterProvider filters = new(_limits.MaxDecodedBytes, _limits.MaxTotalDecodedBytes);
         ParsingOptions parsingOptions = new() { FilterProvider = filters };
@@ -158,18 +109,18 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
                     $"The PDF has {document.NumberOfPages:N0} pages; the limit is {_limits.MaxPdfPages:N0}.");
             }
 
-            List<PageContent> pages = [];
+            List<PdfPage> pages = [];
             long characters = 0;
             foreach (Page page in document.GetPages())
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                List<string> paragraphs = ExtractParagraphs(page);
+                PdfPage layout = PdfLayoutExtractor.Extract(page);
                 filters.ThrowIfLimitExceeded();
 
-                foreach (string paragraph in paragraphs)
+                foreach (PdfBlock block in layout.Blocks)
                 {
-                    characters += paragraph.Length;
+                    characters += block.Text.Length;
                 }
 
                 if (characters > _limits.MaxTextCharacters)
@@ -178,7 +129,7 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
                         $"The text in the PDF exceeds the limit of {_limits.MaxTextCharacters:N0} characters.");
                 }
 
-                pages.Add(new PageContent((float)page.Width, (float)page.Height, paragraphs));
+                pages.Add(layout);
             }
 
             return pages;
@@ -198,49 +149,4 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
             throw new InvalidDocumentException("The file is not a valid PDF document.", ex);
         }
     }
-
-    /// <summary>
-    /// Groups words into blocks (Docstrum), orders the blocks as a reader would, and joins each
-    /// block's lines with newlines; see <see cref="DetectBlock"/> for how both line-bound and
-    /// line-spanning detections are found on that text.
-    /// </summary>
-    private static List<string> ExtractParagraphs(Page page)
-    {
-        List<Word> words = page.GetWords(NearestNeighbourWordExtractor.Instance).ToList();
-        if (words.Count == 0)
-        {
-            return [];
-        }
-
-        IReadOnlyList<TextBlock> blocks = DocstrumBoundingBoxes.Instance.GetBlocks(words);
-        return UnsupervisedReadingOrderDetector.Instance.Get(blocks)
-            .OrderBy(block => block.ReadingOrder)
-            .Select(block => string.Join('\n', block.TextLines.Select(line => line.Text.Trim())).Trim())
-            .Where(paragraph => paragraph.Length > 0)
-            .ToList();
-    }
-
-    private static byte[] Render(List<PageContent> pages) =>
-        Document.Create(container =>
-        {
-            foreach (PageContent page in pages)
-            {
-                container.Page(descriptor =>
-                {
-                    descriptor.Size(page.Width, page.Height, Unit.Point);
-                    descriptor.Margin(MarginPoints, Unit.Point);
-                    descriptor.DefaultTextStyle(style => style.FontSize(FontSizePoints));
-                    descriptor.Content().Column(column =>
-                    {
-                        column.Spacing(ParagraphSpacingPoints, Unit.Point);
-                        foreach (string paragraph in page.Paragraphs)
-                        {
-                            column.Item().Text(paragraph);
-                        }
-                    });
-                });
-            }
-        }).GeneratePdf();
-
-    private sealed record PageContent(float Width, float Height, List<string> Paragraphs);
 }

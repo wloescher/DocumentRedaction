@@ -41,7 +41,7 @@ public class DocumentRedactionServiceTests
 
         Assert.Equal("scan-redacted.pdf", result.FileName);
         Assert.Equal("application/pdf", result.ContentType);
-        Assert.Contains("[REDACTED-EMAIL]", PdfFixture.ReadPageTexts(result.Content)[0], StringComparison.Ordinal);
+        Assert.Contains("EMAIL", PdfFixture.ReadPageTexts(result.Content)[0], StringComparison.Ordinal);
     }
 
     [Fact]

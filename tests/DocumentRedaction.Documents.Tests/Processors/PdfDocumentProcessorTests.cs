@@ -18,8 +18,9 @@ public class PdfDocumentProcessorTests
         ProcessedDocument processed = _processor.Redact(input, _options);
 
         string text = Assert.Single(PdfFixture.ReadPageTexts(processed.Content));
+        // Short values only have room for the kind label inside their box.
         Assert.Contains("[REDACTED-SSN]", text, StringComparison.Ordinal);
-        Assert.Contains("[REDACTED-EMAIL]", text, StringComparison.Ordinal);
+        Assert.Contains("EMAIL", text, StringComparison.Ordinal);
         Assert.DoesNotContain("123-45-6789", text, StringComparison.Ordinal);
         Assert.DoesNotContain("a@b.co", text, StringComparison.Ordinal);
         Assert.Equal(2, processed.Report.Total);
@@ -32,7 +33,7 @@ public class PdfDocumentProcessorTests
         IReadOnlyList<string> pages = PdfFixture.ReadPageTexts(_processor.Redact(input, _options).Content);
 
         Assert.Equal(3, pages.Count);
-        Assert.Contains("first page [REDACTED-EMAIL]", pages[0], StringComparison.Ordinal);
+        Assert.Contains("first page EMAIL", pages[0], StringComparison.Ordinal);
         Assert.Contains("second page", pages[1], StringComparison.Ordinal);
         Assert.Contains("third page [REDACTED-SSN]", pages[2], StringComparison.Ordinal);
     }
@@ -167,6 +168,147 @@ public class PdfDocumentProcessorTests
         Assert.Contains("expires soon", text, StringComparison.Ordinal);
         Assert.Contains("next item", text, StringComparison.Ordinal);
         Assert.Equal(1, processed.Report.Total);
+    }
+
+    [Fact]
+    public void Words_keep_position_size_and_style()
+    {
+        byte[] input = PdfFixture.BuildStyled(("Plain", false, false), ("Bold", true, false), ("Italic", false, true), ("SSN", false, false), ("123-45-6789", false, false));
+        IReadOnlyList<PdfFixture.PdfWord> before = PdfFixture.ReadWords(input).Where(w => !string.IsNullOrWhiteSpace(w.Text)).ToList();
+
+        IReadOnlyList<PdfFixture.PdfWord> after = PdfFixture.ReadWords(_processor.Redact(input, _options).Content).Where(w => !string.IsNullOrWhiteSpace(w.Text)).ToList();
+
+        foreach (string text in new[] { "Plain", "Bold", "Italic", "SSN" })
+        {
+            PdfFixture.PdfWord original = Assert.Single(before, w => w.Text == text);
+            PdfFixture.PdfWord kept = Assert.Single(after, w => w.Text == text);
+            Assert.Equal(original.Left, kept.Left, 1.0);
+            Assert.Equal(original.Baseline, kept.Baseline, 1.0);
+            Assert.Equal(original.PointSize, kept.PointSize, 0.1);
+            Assert.Equal(original.IsBold, kept.IsBold);
+            Assert.Equal(original.IsItalic, kept.IsItalic);
+        }
+
+        Assert.DoesNotContain(after, w => w.Text == "123-45-6789");
+        Assert.Contains(after, w => w.Text == "[REDACTED-SSN]");
+    }
+
+    [Fact]
+    public void Dense_page_does_not_overflow_onto_a_second_page()
+    {
+        string[] lines = Enumerable.Range(1, 45).Select(i => $"Line {i:D2} " + string.Join(' ', Enumerable.Repeat("filler", 12))).ToArray();
+        byte[] input = PdfFixture.BuildLines(lines);
+        Assert.Single(PdfFixture.ReadPageSizes(input));
+
+        IReadOnlyList<string> pages = PdfFixture.ReadPageTexts(_processor.Redact(input, _options).Content);
+
+        string page = Assert.Single(pages);
+        Assert.Contains("Line 01", page, StringComparison.Ordinal);
+        Assert.Contains("Line 45", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Bullet_stays_beside_its_item()
+    {
+        byte[] input = PdfFixture.BuildBulletItem("\u2022", "Item with SSN 123-45-6789 inside");
+        PdfFixture.PdfWord bulletBefore = Assert.Single(PdfFixture.ReadWords(input), w => w.Text == "\u2022");
+
+        IReadOnlyList<PdfFixture.PdfWord> after = PdfFixture.ReadWords(_processor.Redact(input, _options).Content);
+        PdfFixture.PdfWord bullet = Assert.Single(after, w => w.Text == "\u2022");
+        PdfFixture.PdfWord item = Assert.Single(after, w => w.Text == "Item");
+
+        Assert.Equal(bulletBefore.Left, bullet.Left, 1.0);
+        Assert.Equal(bullet.Baseline, item.Baseline, 0.5);
+        Assert.True(item.Left > bullet.Left);
+    }
+
+    [Fact]
+    public void Redaction_box_covers_the_original_span()
+    {
+        byte[] input = PdfFixture.Build(["Patient SSN 123-45-6789 admitted"]);
+        PdfFixture.PdfWord ssn = Assert.Single(PdfFixture.ReadWords(input), w => w.Text == "123-45-6789");
+
+        var boxes = PdfFixture.ReadFilledBoxes(_processor.Redact(input, _options).Content);
+
+        var box = Assert.Single(boxes);
+        Assert.True(box.Left <= ssn.Left + 0.01 && box.Right >= ssn.Right - 0.01, $"box {box.Left}-{box.Right} must span the value {ssn.Left}-{ssn.Right}");
+        Assert.True(box.Bottom <= ssn.Bottom + 0.01 && box.Top >= ssn.Top - 0.01, $"box {box.Bottom}-{box.Top} must span the value {ssn.Bottom}-{ssn.Top}");
+    }
+
+    [Fact]
+    public void Keyword_survives_when_it_shares_the_word_with_its_value()
+    {
+        byte[] input = PdfFixture.Build(["Passport:X12345678 noted"]);
+        string text = Assert.Single(PdfFixture.ReadPageTexts(_processor.Redact(input, _options).Content));
+        Assert.Contains("Passport:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("X12345678", text, StringComparison.Ordinal);
+        Assert.Contains("PASSPORT", text, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(90)]
+    [InlineData(180)]
+    [InlineData(270)]
+    public void Rotated_page_keeps_size_and_word_position(int rotate)
+    {
+        byte[] input = PdfFixture.RotatedPage("Hello 123-45-6789 world", rotate);
+        (double width, double height) = Assert.Single(PdfFixture.ReadPageSizes(input));
+        PdfFixture.PdfWord before = Assert.Single(PdfFixture.ReadWords(input), w => w.Text == "Hello");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+
+        (double outWidth, double outHeight) = Assert.Single(PdfFixture.ReadPageSizes(processed.Content));
+        Assert.Equal(width, outWidth, 0.5);
+        Assert.Equal(height, outHeight, 0.5);
+        PdfFixture.PdfWord after = Assert.Single(PdfFixture.ReadWords(processed.Content), w => w.Text == "Hello");
+        Assert.Equal(before.Left, after.Left, 1.0);
+        Assert.Equal(before.Baseline, after.Baseline, 1.0);
+        Assert.Equal(1, processed.Report.Total);
+    }
+
+    [Fact]
+    public void Cropped_page_keeps_its_crop_size_and_positions_relative_to_the_crop()
+    {
+        byte[] input = PdfFixture.CroppedPage("Hello 123-45-6789");
+        (double width, double height) = Assert.Single(PdfFixture.ReadPageSizes(input));
+        Assert.Equal(400, width, 0.5);
+        Assert.Equal(600, height, 0.5);
+        PdfFixture.PdfWord before = Assert.Single(PdfFixture.ReadWords(input), w => w.Text == "Hello");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+
+        (double outWidth, double outHeight) = Assert.Single(PdfFixture.ReadPageSizes(processed.Content));
+        Assert.Equal(width, outWidth, 0.5);
+        Assert.Equal(height, outHeight, 0.5);
+        // PdfPig reports positions relative to the crop box on both sides, so they match as they are.
+        PdfFixture.PdfWord after = Assert.Single(PdfFixture.ReadWords(processed.Content), w => w.Text == "Hello");
+        Assert.Equal(before.Left, after.Left, 1.0);
+        Assert.Equal(before.Baseline, after.Baseline, 1.0);
+    }
+
+    [Fact]
+    public void Angled_text_keeps_its_slant()
+    {
+        byte[] input = PdfFixture.AngledTextPage("Hello 123-45-6789");
+        PdfFixture.PdfWord before = Assert.Single(PdfFixture.ReadWords(input), w => w.Text == "Hello");
+
+        ProcessedDocument processed = _processor.Redact(input, _options);
+
+        PdfFixture.PdfWord after = Assert.Single(PdfFixture.ReadWords(processed.Content), w => w.Text == "Hello");
+        Assert.Equal(before.Left, after.Left, 1.0);
+        Assert.Equal(before.Baseline, after.Baseline, 1.0);
+        Assert.Equal(before.Top, after.Top, 1.5);
+        Assert.Equal(1, processed.Report.Total);
+    }
+
+    [Fact]
+    public void Unusable_page_geometry_is_reported_as_an_invalid_document()
+    {
+        // A zero-sized media box parses, but no page can be drawn at that size.
+        byte[] input = PdfFixture.RawPage("/MediaBox [0 0 0 0]", "BT /F1 12 Tf 10 10 Td (Hello) Tj ET");
+        InvalidDocumentException ex = Assert.Throws<InvalidDocumentException>(() => _processor.Redact(input, _options));
+        Assert.Contains("rebuilt", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]

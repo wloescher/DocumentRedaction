@@ -4,6 +4,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 
 namespace DocumentRedaction.Tests.Fixtures;
 
@@ -175,10 +176,122 @@ public static class PdfFixture
 
     private static byte[] Ascii(string text) => Encoding.ASCII.GetBytes(text);
 
+    /// <summary>
+    /// Each page's words in reading order, joined with spaces within a line and newlines
+    /// between lines. Built from positions because the regenerated PDF places every word as
+    /// its own text object, so PdfPig's raw page text would run words together.
+    /// </summary>
     public static IReadOnlyList<string> ReadPageTexts(ReadOnlyMemory<byte> content)
     {
         using PdfDocument document = PdfDocument.Open(content.ToArray());
-        return document.GetPages().Select(page => page.Text).ToList();
+        return document.GetPages().Select(page =>
+        {
+            IEnumerable<IGrouping<double, PdfWord>> lines = ReadWords(page)
+                .Where(word => !string.IsNullOrWhiteSpace(word.Text))
+                .GroupBy(word => Math.Round(word.Baseline * 2) / 2)
+                .OrderByDescending(line => line.Key);
+            return string.Join('\n', lines.Select(line => string.Join(' ', line.OrderBy(word => word.Left).Select(word => word.Text))));
+        }).ToList();
+    }
+
+    /// <summary>Every word on every page with the geometry the position tests compare.</summary>
+    public static IReadOnlyList<PdfWord> ReadWords(ReadOnlyMemory<byte> content)
+    {
+        using PdfDocument document = PdfDocument.Open(content.ToArray());
+        return document.GetPages().SelectMany(ReadWords).ToList();
+    }
+
+    private static IEnumerable<PdfWord> ReadWords(UglyToad.PdfPig.Content.Page page) =>
+        page.GetWords(NearestNeighbourWordExtractor.Instance).Select(word => new PdfWord(
+            word.Text,
+            word.BoundingBox.Left,
+            word.BoundingBox.Right,
+            word.BoundingBox.Top,
+            word.BoundingBox.Bottom,
+            word.Letters[0].StartBaseLine.Y,
+            word.Letters[0].PointSize,
+            word.Letters[0].FontDetails.IsBold,
+            word.Letters[0].FontDetails.IsItalic,
+            page.Number));
+
+    /// <summary>Bounding boxes of the filled paths on each page, in page order.</summary>
+    public static IReadOnlyList<(int Page, double Left, double Right, double Top, double Bottom)> ReadFilledBoxes(ReadOnlyMemory<byte> content)
+    {
+        using PdfDocument document = PdfDocument.Open(content.ToArray());
+        return document.GetPages()
+            .SelectMany(page => page.Paths
+                .Where(path => path.IsFilled)
+                .Select(path => path.GetBoundingRectangle())
+                .Where(bounds => bounds.HasValue)
+                .Select(bounds => (page.Number, bounds!.Value.Left, bounds.Value.Right, bounds.Value.Top, bounds.Value.Bottom)))
+            .ToList();
+    }
+
+    public sealed record PdfWord(string Text, double Left, double Right, double Top, double Bottom, double Baseline, double PointSize, bool IsBold, bool IsItalic, int Page);
+
+    /// <summary>One page of styled words on a single line, each given as text plus bold/italic flags.</summary>
+    public static byte[] BuildStyled(params (string Text, bool Bold, bool Italic)[] words) =>
+        Document.Create(container => container.Page(page =>
+        {
+            page.Size(PageSizes.Letter);
+            page.Margin(40);
+            page.Content().Text(text =>
+            {
+                foreach ((string value, bool bold, bool italic) in words)
+                {
+                    TextSpanDescriptor span = text.Span(value + " ");
+                    if (bold)
+                    {
+                        span.Bold();
+                    }
+
+                    if (italic)
+                    {
+                        span.Italic();
+                    }
+                }
+            });
+        })).GeneratePdf();
+
+    /// <summary>A bullet glyph and its item text side by side on one baseline, as list layouts do.</summary>
+    public static byte[] BuildBulletItem(string bullet, string itemText) =>
+        Document.Create(container => container.Page(page =>
+        {
+            page.Size(PageSizes.Letter);
+            page.Margin(40);
+            page.Content().Row(row =>
+            {
+                row.ConstantItem(20).Text(bullet);
+                row.RelativeItem().Text(itemText);
+            });
+        })).GeneratePdf();
+
+    /// <summary>A raw single-page PDF with /Rotate set, drawing <paramref name="text"/> in Helvetica at (100, 700).</summary>
+    public static byte[] RotatedPage(string text, int rotate) =>
+        RawPage($"/Rotate {rotate}", $"BT /F1 12 Tf 100 700 Td ({text}) Tj ET");
+
+    /// <summary>A Letter media box cropped to [100 100 500 700], with <paramref name="text"/> at (150, 650) in media-box coordinates.</summary>
+    public static byte[] CroppedPage(string text) =>
+        RawPage("/CropBox [100 100 500 700]", $"BT /F1 12 Tf 150 650 Td ({text}) Tj ET");
+
+    /// <summary>Text set with a text matrix rotated 30 degrees anticlockwise, starting at (100, 700).</summary>
+    public static byte[] AngledTextPage(string text) =>
+        RawPage("", $"BT /F1 12 Tf 0.866 0.5 -0.5 0.866 100 700 Tm ({text}) Tj ET");
+
+    /// <summary>
+    /// A raw single page with Helvetica as /F1 and the given content stream. <paramref name="pageEntries"/>
+    /// is spliced into the page dictionary; a /MediaBox there overrides the Letter default.
+    /// </summary>
+    public static byte[] RawPage(string pageEntries, string content)
+    {
+        byte[] stream = Ascii(content);
+        string mediaBox = pageEntries.Contains("/MediaBox", StringComparison.Ordinal) ? "" : "/MediaBox [0 0 612 792] ";
+        return RawPdf([
+            Ascii("<< /Type /Catalog /Pages 2 0 R >>"),
+            Ascii("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            Ascii($"<< /Type /Page /Parent 2 0 R {mediaBox}{pageEntries} /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"),
+            Ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+            [.. Ascii($"<< /Length {stream.Length} >>\nstream\n"), .. stream, .. Ascii("\nendstream")]]);
     }
 
     public static IReadOnlyList<(double Width, double Height)> ReadPageSizes(ReadOnlyMemory<byte> content)

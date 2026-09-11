@@ -22,9 +22,10 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
   is `AddDocumentRedaction()` in Documents.
 - Every `InformationKind` needs a catalog entry in `InformationKinds`, a detector registered in
   `DetectorRegistry`, and tests for positives, negatives and checksum edges. A Core test fails
-  if a kind has no detector. A detector that widens to the surrounding sentence must set
+  if a text kind has no detector. A detector that widens to the surrounding sentence must set
   `WidensToSentence` on its catalog entry and stop at line breaks; the PDF processor relies on
-  both when it joins block lines to catch wrapped identifiers.
+  both when it joins block lines to catch wrapped identifiers. Kinds flagged `MetadataOnly`
+  (document author) have no detector: processors redact them from document structure.
 - Detections carry matched text for tests only. Never log detection text or document content.
 - Test fixtures are built in memory (`tests/DocumentRedaction.Tests.Fixtures`); do not add binary
   .docx/.pdf files to the repo.
@@ -37,6 +38,6 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
 ## Work tracking
 
 Issue #1 tracked the initial build (merged in PR #2). Each follow-up has its own issue, branch
-and PR: #3 PDF parsing caps, #4 Word metadata, #5 API key and rate limiting, #6 person-name
-detection. TASKS.md holds the checklist for the issue in progress plus the queue. Reference the
+and PR: #3 PDF parsing caps (PR #7), #8 position-preserving PDF output (PR #9), #4 Word
+metadata, #5 API key and rate limiting, #6 person-name detection. TASKS.md holds the checklist for the issue in progress plus the queue. Reference the
 issue in commit messages (`Refs #<n>`, `Closes #<n>`).

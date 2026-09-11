@@ -93,7 +93,8 @@ public class WordDocumentProcessorTests
         Assert.Contains("footer [REDACTED-SSN]", text, StringComparison.Ordinal);
         Assert.Contains("note [REDACTED-PHONE]", text, StringComparison.Ordinal);
         Assert.Contains("comment [REDACTED-CREDIT-CARD]", text, StringComparison.Ordinal);
-        Assert.Equal(4, processed.Report.Total);
+        Assert.Equal(1, processed.Report.CountsByKind[InformationKind.DocumentAuthor]); // the comment's author
+        Assert.Equal(5, processed.Report.Total);
     }
 
     [Fact]

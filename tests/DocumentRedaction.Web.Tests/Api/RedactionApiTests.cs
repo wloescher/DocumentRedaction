@@ -41,6 +41,8 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
         CategoryDto hipaa = categories.Single(c => c.Category == "Hipaa");
         Assert.Contains(hipaa.Kinds, k => k.Kind == "SocialSecurityNumber" && k.PlaceholderLabel == "SSN");
         Assert.Contains(hipaa.Kinds, k => k.Kind == "Date");
+        CategoryDto pii = categories.Single(c => c.Category == "Pii");
+        Assert.Contains(pii.Kinds, k => k.Kind == "DocumentAuthor" && k.PlaceholderLabel == "AUTHOR");
     }
 
     [Fact]
@@ -59,6 +61,27 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
         Assert.Equal(2, report.Total);
         Assert.Equal(1, report.CountsByKind["SocialSecurityNumber"]);
         Assert.Equal(1, report.CountsByKind["EmailAddress"]);
+        Assert.Empty(report.Warnings);
+    }
+
+    [Fact]
+    public async Task Word_file_with_an_embedded_object_carries_a_warning_in_the_header_and_the_summary()
+    {
+        byte[] input = WordFixture.Build(main =>
+        {
+            main.Document!.Body!.Append(WordFixture.Paragraph("SSN 123-45-6789"));
+            WordFixture.AddEmbeddedObject(main);
+        });
+
+        using HttpResponseMessage response = await PostAsync(RedactionApiFixture.Form(input, "memo.docx", "application/octet-stream"));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        ReportDto? report = JsonSerializer.Deserialize<ReportDto>(response.Headers.GetValues(RedactionEndpoints.ReportHeader).Single(), Json);
+        string warning = Assert.Single(report!.Warnings);
+        Assert.Contains("embedded object", warning, StringComparison.Ordinal);
+
+        using HttpResponseMessage summaryResponse = await PostAsync(RedactionApiFixture.Form(input, "memo.docx", "application/octet-stream"), "/api/redact/summary");
+        RedactionSummaryDto? summary = await summaryResponse.Content.ReadFromJsonAsync<RedactionSummaryDto>(Json, TestContext.Current.CancellationToken);
+        Assert.Equal(warning, Assert.Single(summary!.Report.Warnings));
     }
 
     [Fact]

@@ -23,7 +23,7 @@ result is gone; run the redaction again.
 
 | Category | Examples |
 |---|---|
-| PII | 123-45-6789, jane@example.com, (555) 123-4567, 192.168.1.1, "Passport: X12345678", "DL# S123-456-789", 123 Main Street |
+| PII | 123-45-6789, jane@example.com, (555) 123-4567, 192.168.1.1, "Passport: X12345678", "DL# S123-456-789", 123 Main Street, and in Word files the author names stored in the file properties, comments and tracked changes |
 | HIPAA / PHI | everything in PII plus "MRN: 00123456", "Member ID: XYZ123456", NPI 1234567893, DEA AB1234563, 01/02/1980, Jan 2, 1980 |
 | Financial | 4111 1111 1111 1111, routing 021000021, GB82 WEST 1234 5698 7654 32, "SWIFT: DEUTDEFF", "Account No: 123456789012" |
 | Confidential | the whole sentence containing "confidential", "proprietary", "internal use only", "trade secret", "do not distribute" |
@@ -36,7 +36,12 @@ PDFs through OCR first.
 
 - **Text files** keep their line endings and encoding; only the redacted spans change.
 - **Word files** keep their formatting, tables, headers, footers, footnotes and comments. Links
-  whose address contained sensitive data now point to `about:blank`.
+  whose address contained sensitive data now point to `about:blank`. The creator, last editor,
+  manager, comment authors and tracked-change authors become `[REDACTED-AUTHOR]` (untick
+  "Document author" to keep them), and the title, subject, keywords, description, company and
+  text-valued custom properties are redacted like the text. Embedded objects (a spreadsheet
+  pasted as an object, for example), imported HTML or RTF content and SmartArt are not opened;
+  the page shows a warning when a file contains any of them.
 - **PDF files** are redrawn word by word in the original positions, so the layout, bullets and
   page count stay as they were; fonts are replaced with a similar generic font, text is black,
   and images are dropped. Each redacted span is covered by a black box labelled with the

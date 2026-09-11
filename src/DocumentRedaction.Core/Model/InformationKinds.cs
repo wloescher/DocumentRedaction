@@ -29,6 +29,7 @@ public static class InformationKinds
         new(InformationKind.StreetAddress, "Street address", "ADDRESS", PiiAndHipaa, 170),
         new(InformationKind.Date, "Date", "DATE", RedactionCategory.Hipaa, 180),
         new(InformationKind.ConfidentialStatement, "Confidential statement", "CONFIDENTIAL", RedactionCategory.Confidential, 190, WidensToSentence: true),
+        new(InformationKind.DocumentAuthor, "Document author", "AUTHOR", PiiAndHipaa, 200, MetadataOnly: true),
     }.ToFrozenDictionary(info => info.Kind);
 
     /// <summary>All kinds, ordered by priority.</summary>
@@ -38,6 +39,10 @@ public static class InformationKinds
     /// <summary>Kinds whose detections widen to a sentence; see <see cref="InformationKindInfo.WidensToSentence"/>.</summary>
     public static IReadOnlySet<InformationKind> SentenceKinds { get; } =
         All.Where(info => info.WidensToSentence).Select(info => info.Kind).ToHashSet();
+
+    /// <summary>Kinds found in document metadata rather than text; see <see cref="InformationKindInfo.MetadataOnly"/>.</summary>
+    public static IReadOnlySet<InformationKind> MetadataKinds { get; } =
+        All.Where(info => info.MetadataOnly).Select(info => info.Kind).ToHashSet();
 
     public static InformationKindInfo Get(InformationKind kind) =>
         ByKind.TryGetValue(kind, out InformationKindInfo? info)

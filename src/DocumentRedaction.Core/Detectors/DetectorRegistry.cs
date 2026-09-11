@@ -29,11 +29,17 @@ public static class DetectorRegistry
         new CustomTermDetector(),
     ];
 
-    /// <summary>Throws when a kind in the catalog has no detector, or a detector has no catalog entry.</summary>
+    /// <summary>
+    /// Throws when a text kind in the catalog has no detector, or a detector has no catalog entry.
+    /// Metadata-only kinds are redacted by document processors and need no detector.
+    /// </summary>
     public static void EnsureComplete(IReadOnlyList<IDetector> detectors)
     {
         HashSet<InformationKind> covered = detectors.Select(detector => detector.Kind).ToHashSet();
-        InformationKind[] missing = InformationKinds.All.Select(info => info.Kind).Where(kind => !covered.Contains(kind)).ToArray();
+        InformationKind[] missing = InformationKinds.All
+            .Select(info => info.Kind)
+            .Where(kind => !InformationKinds.MetadataKinds.Contains(kind) && !covered.Contains(kind))
+            .ToArray();
         if (missing.Length > 0)
         {
             throw new InvalidOperationException($"No detector registered for: {string.Join(", ", missing)}.");

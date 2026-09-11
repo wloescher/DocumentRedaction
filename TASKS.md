@@ -14,6 +14,14 @@ Personal names are not detected; users must type every name as a custom term.
 
 - (empty)
 
+## Done: post-review performance & correctness fixes — [#14](https://github.com/wloescher/DocumentRedaction/issues/14)
+
+Three fixes from a whole-repo `/code-review`, no behaviour change (705 tests pass):
+
+- [x] Core: `TextRedactor` caches the resolved detector set per `RedactionOptions` (was recomputing `EffectiveKinds()`/`NormalizedCustomTerms` once or twice per PDF layout block)
+- [x] Web: API-key authentication memoized in `HttpContext.Items` (was running the `FixedTimeEquals` sweep twice per `/api` request — endpoint filter plus rate-limit partition)
+- [x] Web: Blazor `Home.razor` progress-timer tick guarded against a disposal race (`volatile _disposed` flag, awaited `try/catch (ObjectDisposedException)`)
+
 ## Done: API key auth, rate limiting, QuestPDF license — [#5](https://github.com/wloescher/DocumentRedaction/issues/5), PR #11
 
 Optional `X-Api-Key` gate and fixed-window throttle on `/api`, configurable QuestPDF tier; startup validation for every setting. 609 tests at merge.

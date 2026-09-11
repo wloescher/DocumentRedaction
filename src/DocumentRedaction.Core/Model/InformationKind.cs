@@ -23,4 +23,5 @@ public enum InformationKind
     ConfidentialStatement,
     CustomTerm,
     DocumentAuthor,
+    PersonName,
 }

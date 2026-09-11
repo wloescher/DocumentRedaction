@@ -43,6 +43,9 @@ public class RedactionApiTests : IClassFixture<RedactionApiFixture>
         Assert.Contains(hipaa.Kinds, k => k.Kind == "Date");
         CategoryDto pii = categories.Single(c => c.Category == "Pii");
         Assert.Contains(pii.Kinds, k => k.Kind == "DocumentAuthor" && k.PlaceholderLabel == "AUTHOR");
+        Assert.Contains(pii.Kinds, k => k.Kind == "PersonName" && k.PlaceholderLabel == "NAME");
+        Assert.Contains(hipaa.Kinds, k => k.Kind == "PersonName");
+        Assert.DoesNotContain(categories.Single(c => c.Category == "Financial").Kinds, k => k.Kind == "PersonName");
     }
 
     [Fact]

@@ -20,7 +20,7 @@ End-user guide: [ENDUSER.md](ENDUSER.md).
 
 | Category | Kinds |
 |---|---|
-| PII | SSN, email, phone, IP address, passport, driver's license, street address, document author (Word metadata, comments, tracked changes) |
+| PII | SSN, email, phone, IP address, passport, driver's license, street address, person name (heuristic), document author (Word metadata, comments, tracked changes) |
 | HIPAA / PHI | everything in PII plus MRN, health plan / Medicare beneficiary ID, NPI, DEA number, dates |
 | Financial | credit card (Luhn), ABA routing number, IBAN (mod-97), SWIFT/BIC, account number |
 | Confidential | whole sentences containing markers such as "confidential", "proprietary", "internal use only", "trade secret" |
@@ -30,10 +30,27 @@ category selection. Detection is pattern-based with checksum validation where a 
 exists; kinds that would otherwise be ambiguous (passport, driver's license, MRN, account
 number, SWIFT) require an introducing keyword such as "Passport:".
 
+Person names are found by heuristics, not a language model. A name is proposed after an
+abbreviated honorific ("Dr. Jane Smith"), after a spelled-out title when two name words follow
+("Captain James Cook", but not "General Ledger"), after a form label with a colon or dash
+("Patient: Smith, John A.", "Attn: Jane Smith"), after a salutation or sign-off ("Dear John,",
+"Sincerely,\nJane Smith"), or as a capitalised pair whose first word is on an embedded list of
+common given names ("Jane Smith reviewed"). The honorific or label stays in the document. A
+name ends before the first word that plainly ends one (Date, Street, Inc, a month, a pronoun),
+never crosses a line break, and a custom term of the same length wins over it. Given names
+that are also ordinary words ("Mark", "May", "Grace") count only mid-sentence.
+
 ### Known limitations
 
-- Personal names and free-form addresses are not detected without a named-entity model.
-  Use custom terms for names. The `IDetector` interface is the seam for adding an NER provider.
+- Person-name detection is heuristic. It misses names whose given name is not on the list
+  (many non-Anglophone names), names written in capitals, single surnames without an honorific
+  or label, names of more than five words, names with a month as a middle name, and names that
+  open a sentence when the given name is also a word ("Mark Twain wrote"). It can over-redact
+  title-case phrases that start with a listed name and organisation names built from a
+  person's name ("Taylor Wimpey"). Untick the "Person name" kind to turn it off; add custom terms for the
+  misses. The `IDetector` interface is the seam for adding a named-entity model.
+- Free-form addresses in unusual formats are not detected; the address rule expects a house
+  number, street name and suffix.
 - Dates under HIPAA are noisy (invoice dates get redacted too); untick the Date kind if needed.
 - PDF output is redrawn from the extracted text: every word is placed where it was, at its size,
   weight and slant, so line breaks, columns, bullets, page sizes and page count survive. Fonts are

@@ -72,4 +72,18 @@ public class InformationKindsTests
         Assert.Contains(InformationKind.DocumentAuthor, new RedactionOptions { Categories = RedactionCategory.Pii }.EffectiveKinds());
         Assert.DoesNotContain(InformationKind.DocumentAuthor, new RedactionOptions { Categories = RedactionCategory.Financial }.EffectiveKinds());
     }
+
+    [Fact]
+    public void Person_name_is_a_pii_and_hipaa_text_kind_ranked_after_every_pattern_kind()
+    {
+        InformationKindInfo info = InformationKinds.Get(InformationKind.PersonName);
+        Assert.Equal("NAME", info.PlaceholderLabel);
+        Assert.Equal(RedactionCategory.Pii | RedactionCategory.Hipaa, info.Categories);
+        Assert.False(info.MetadataOnly);
+        Assert.False(info.WidensToSentence);
+        // Ties on length go to identifiers and custom terms, which are far less likely to be wrong.
+        Assert.True(info.Priority > InformationKinds.Get(InformationKind.CustomTerm).Priority);
+        Assert.True(info.Priority > InformationKinds.Get(InformationKind.StreetAddress).Priority);
+        Assert.True(info.Priority > InformationKinds.Get(InformationKind.Date).Priority);
+    }
 }

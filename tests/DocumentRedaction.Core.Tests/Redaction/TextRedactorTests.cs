@@ -18,12 +18,48 @@ public class TextRedactorTests
         var result = _redactor.Redact(Sample, new RedactionOptions());
 
         Assert.Equal(
-            "Patient John Smith, SSN [REDACTED-SSN], DOB [REDACTED-DATE], phone [REDACTED-PHONE], " +
+            "Patient [REDACTED-NAME], SSN [REDACTED-SSN], DOB [REDACTED-DATE], phone [REDACTED-PHONE], " +
             "email [REDACTED-EMAIL], card [REDACTED-CREDIT-CARD], IBAN [REDACTED-IBAN]. " +
             "[REDACTED-CONFIDENTIAL]",
             result.RedactedText);
-        Assert.Equal(7, result.Report.Total);
+        Assert.Equal(8, result.Report.Total);
         Assert.Equal(1, result.Report.CountsByKind[InformationKind.SocialSecurityNumber]);
+        Assert.Equal(1, result.Report.CountsByKind[InformationKind.PersonName]);
+    }
+
+    [Fact]
+    public void Custom_term_wins_over_a_person_name_of_the_same_length()
+    {
+        var result = _redactor.Redact(Sample, new RedactionOptions { CustomTerms = ["John Smith"] });
+        Assert.StartsWith("Patient [REDACTED-CUSTOM], SSN", result.RedactedText, StringComparison.Ordinal);
+        Assert.Equal(1, result.Report.CountsByKind[InformationKind.CustomTerm]);
+        Assert.False(result.Report.CountsByKind.ContainsKey(InformationKind.PersonName));
+    }
+
+    [Fact]
+    public void Longer_person_name_wins_over_a_shorter_custom_term_inside_it()
+    {
+        var result = _redactor.Redact("Patient: Dr. John Smith Jr. was seen.", new RedactionOptions { CustomTerms = ["Smith"] });
+        Assert.Equal("Patient: Dr. [REDACTED-NAME] was seen.", result.RedactedText);
+        Assert.Equal(1, result.Report.Total);
+    }
+
+    [Fact]
+    public void Overlapping_name_rules_collapse_to_one_detection()
+    {
+        // The label rule and the honorific rule both propose "Jane Smith"; the engine keeps one.
+        var result = _redactor.Redact("Patient: Dr. Jane Smith", new RedactionOptions { Categories = RedactionCategory.Pii });
+        Assert.Equal("Patient: Dr. [REDACTED-NAME]", result.RedactedText);
+        Assert.Equal(1, result.Report.Total);
+    }
+
+    [Fact]
+    public void Person_names_follow_pii_and_hipaa_but_not_financial()
+    {
+        Assert.Contains("[REDACTED-NAME]", _redactor.Redact(Sample, new RedactionOptions { Categories = RedactionCategory.Pii }).RedactedText, StringComparison.Ordinal);
+        Assert.Contains("[REDACTED-NAME]", _redactor.Redact(Sample, new RedactionOptions { Categories = RedactionCategory.Hipaa }).RedactedText, StringComparison.Ordinal);
+        Assert.StartsWith("Patient John Smith,", _redactor.Redact(Sample, new RedactionOptions { Categories = RedactionCategory.Financial }).RedactedText, StringComparison.Ordinal);
+        Assert.StartsWith("Patient John Smith,", _redactor.Redact(Sample, new RedactionOptions { ExcludedKinds = new HashSet<InformationKind> { InformationKind.PersonName } }).RedactedText, StringComparison.Ordinal);
     }
 
     [Fact]

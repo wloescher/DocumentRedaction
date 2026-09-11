@@ -28,6 +28,8 @@ public static class InformationKinds
         new(InformationKind.IpAddress, "IP address", "IP", PiiAndHipaa, 160),
         new(InformationKind.StreetAddress, "Street address", "ADDRESS", PiiAndHipaa, 170),
         new(InformationKind.Date, "Date", "DATE", RedactionCategory.Hipaa, 180),
+        // Heuristic, so on a length tie it yields to every pattern kind above and to custom terms.
+        new(InformationKind.PersonName, "Person name", "NAME", PiiAndHipaa, 185),
         new(InformationKind.ConfidentialStatement, "Confidential statement", "CONFIDENTIAL", RedactionCategory.Confidential, 190, WidensToSentence: true),
         new(InformationKind.DocumentAuthor, "Document author", "AUTHOR", PiiAndHipaa, 200, MetadataOnly: true),
     }.ToFrozenDictionary(info => info.Kind);

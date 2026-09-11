@@ -23,14 +23,18 @@ result is gone; run the redaction again.
 
 | Category | Examples |
 |---|---|
-| PII | 123-45-6789, jane@example.com, (555) 123-4567, 192.168.1.1, "Passport: X12345678", "DL# S123-456-789", 123 Main Street, and in Word files the author names stored in the file properties, comments and tracked changes |
+| PII | 123-45-6789, jane@example.com, (555) 123-4567, 192.168.1.1, "Passport: X12345678", "DL# S123-456-789", 123 Main Street, names such as "Dr. Jane Smith", "Patient: Smith, John", "Dear John" or "Jane Smith reviewed", and in Word files the author names stored in the file properties, comments and tracked changes |
 | HIPAA / PHI | everything in PII plus "MRN: 00123456", "Member ID: XYZ123456", NPI 1234567893, DEA AB1234563, 01/02/1980, Jan 2, 1980 |
 | Financial | 4111 1111 1111 1111, routing 021000021, GB82 WEST 1234 5698 7654 32, "SWIFT: DEUTDEFF", "Account No: 123456789012" |
 | Confidential | the whole sentence containing "confidential", "proprietary", "internal use only", "trade secret", "do not distribute" |
 
-Things the service cannot find on its own: people's names, free-form addresses in unusual
-formats, and text inside images or scanned pages. Add names as custom terms, and run scanned
-PDFs through OCR first.
+Names are found by rules, not by understanding the text: a name after a title or a label
+(Dr., Mr., Patient, Attn, Dear, Sincerely, Signed), or a capitalised pair that starts with a
+common first name. Names in capitals, surnames on their own, and less common first names are
+missed, and an occasional title-case phrase may be redacted as if it were a name. Add the
+misses as custom terms, and untick "Person name" if the rules get in the way. The service also
+cannot find free-form addresses in unusual formats or text inside images or scanned pages; run
+scanned PDFs through OCR first.
 
 ## What the output looks like
 

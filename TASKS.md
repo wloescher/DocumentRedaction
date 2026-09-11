@@ -1,22 +1,25 @@
 # TASKS — Document Redaction service
 
-## In progress: Word metadata — [#4](https://github.com/wloescher/DocumentRedaction/issues/4)
+## In progress: API key auth, rate limiting, QuestPDF license — [#5](https://github.com/wloescher/DocumentRedaction/issues/5)
 
-Branch: `feature/4-word-metadata`
+Branch: `feature/5-api-key-rate-limit`
 
-Redacted .docx files still named people in the file properties, on comments and tracked changes,
-and in the reviewer list, and embedded objects passed through silently.
+The `/api` endpoints are anonymous and unthrottled, and the QuestPDF license is hard-coded to Community.
 
-- [x] 1. Core: `InformationKind.DocumentAuthor` (PII and HIPAA) flagged `MetadataOnly`, so it needs no text detector; catalog and registry tests
-- [x] 2. Word: `WordMetadataRedactor` replaces creator, last editor, manager and every `w:author` in any package part (body, headers, footnotes, comments, styles, numbering, glossary; initials dropped) and removes the people part when the kind is selected; title, subject, keywords, description, company and string custom properties go through the text detectors
-- [x] 3. Warnings: `ProcessedDocument`/`RedactedDocument` carry warnings; embedded objects (anywhere in the package) and imported HTML/RTF chunks or SmartArt are counted and reported; API report and summary include `warnings`; the page lists them
-- [x] 4. Tests: every property path, exclusion and category selection, comment/insert/delete/format-change authors, headers, people part, embedded object untouched, placeholder format; existing comment test updated for the counted author
-- [x] 5. Docs (README Word metadata section, ENDUSER, CLAUDE.md) and review gate: correctness pass found authors in styles/numbering/glossary unscrubbed and imported chunks/SmartArt unflagged (fixed by scanning every package part and a second warning); cleanup pass applied (author counter instead of synthetic detections, one source of truth for metadata kinds, fixture package-open helper, warning colour token, extra tests)
+- [x] 1. Settings: `Redaction:ApiKeys` (optional list), `Redaction:RateLimit` (`Enabled`, `PermitLimit`, `WindowSeconds`) and `Redaction:QuestPdfLicense`, validated at startup
+- [x] 2. API key: endpoint filter on the `/api` group checks `X-Api-Key` against the configured keys (constant-time); no keys configured means open mode with a startup warning; missing or wrong key is a 401 problem response
+- [x] 3. Rate limiting: fixed-window limiter on the `/api` group partitioned by valid API key, otherwise by client IP; 429 problem response with `Retry-After`
+- [x] 4. QuestPDF license: Documents takes the license through `AddDocumentRedaction`; Web binds it from settings
+- [x] 5. Tests: validator cases, open mode, missing/wrong/valid key, categories gated, 429 after the limit with per-key partitions, disabled limiter, license mapping, startup warning
+- [x] 6. Docs (README configuration and API sections, ENDUSER, CLAUDE.md) and review gate: correctness pass found an undefined numeric `QuestPdfLicense` and an oversized window passing startup validation (both now rejected), a scalar `ApiKeys` value silently binding nothing (now fails startup), and non-ASCII or duplicate keys accepted; cleanup pass bound the limiter through options, moved QuestPDF globals into one helper, removed a duplicate "open" predicate and shared the problem-details test helpers
 
 ## Queue
 
-- [#5](https://github.com/wloescher/DocumentRedaction/issues/5) API key auth, rate limiting, QuestPDF license config
 - [#6](https://github.com/wloescher/DocumentRedaction/issues/6) Heuristic person-name detection
+
+## Done: Word metadata — [#4](https://github.com/wloescher/DocumentRedaction/issues/4), PR #10
+
+Creator, editors and every tracked-change or comment author redacted from the package; properties through the detectors; embedded objects and imported content reported as warnings. 545 tests at merge.
 
 ## Done: position-preserving PDF output — [#8](https://github.com/wloescher/DocumentRedaction/issues/8), PR #9
 

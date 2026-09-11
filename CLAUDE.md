@@ -34,10 +34,16 @@ filters after `--` (for example `-- --filter-method "*Iban*"`).
 - Parsing caps live in `DocumentLimits` (Documents) and are bound from `Redaction:Limits`. Web
   reads settings only through `IOptions<RedactionSettings>`; never read `builder.Configuration`
   eagerly in `Program.cs`, because test hosts add configuration after that point.
+- The `/api` group carries the API-key endpoint filter and the `api` rate-limit policy; new API
+  routes go in that group so they inherit both. The Blazor page calls the service in-process
+  and is neither gated nor throttled. Never log or echo API key values.
+- Web integration tests that consume rate-limit budget or need their own settings build a
+  `ConfiguredFixture` per test; the shared `RedactionApiFixture` sets a very high permit limit.
 
 ## Work tracking
 
 Issue #1 tracked the initial build (merged in PR #2). Each follow-up has its own issue, branch
 and PR: #3 PDF parsing caps (PR #7), #8 position-preserving PDF output (PR #9), #4 Word
-metadata, #5 API key and rate limiting, #6 person-name detection. TASKS.md holds the checklist for the issue in progress plus the queue. Reference the
-issue in commit messages (`Refs #<n>`, `Closes #<n>`).
+metadata (PR #10), #5 API key and rate limiting, #6 person-name detection. TASKS.md holds the
+checklist for the issue in progress plus the queue. Reference the issue in commit messages
+(`Refs #<n>`, `Closes #<n>`).

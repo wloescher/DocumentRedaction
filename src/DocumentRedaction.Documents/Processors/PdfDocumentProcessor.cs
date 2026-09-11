@@ -1,7 +1,6 @@
 using DocumentRedaction.Core.Model;
 using DocumentRedaction.Core.Redaction;
 using DocumentRedaction.Documents.Processors.Pdf;
-using QuestPDF.Infrastructure;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Exceptions;
@@ -21,18 +20,13 @@ public sealed class PdfDocumentProcessor : IDocumentProcessor
     private readonly ITextRedactor _redactor;
     private readonly DocumentLimits _limits;
 
-    static PdfDocumentProcessor()
-    {
-        QuestPDF.Settings.License = LicenseType.Community;
-        // Redacted documents may contain glyphs outside the bundled font; render what we can.
-        QuestPDF.Settings.CheckIfAllTextGlyphsAreAvailable = false;
-    }
-
-    public PdfDocumentProcessor(ITextRedactor redactor, DocumentLimits? limits = null)
+    /// <summary><paramref name="license"/> is applied to QuestPDF's process-wide settings; see <see cref="QuestPdfSettings"/>.</summary>
+    public PdfDocumentProcessor(ITextRedactor redactor, DocumentLimits? limits = null, QuestPdfLicense license = QuestPdfLicense.Community)
     {
         ArgumentNullException.ThrowIfNull(redactor);
         _redactor = redactor;
         _limits = DocumentLimits.Validated(limits);
+        QuestPdfSettings.Apply(license);
     }
 
     public DocumentFormat Format => DocumentFormat.Pdf;

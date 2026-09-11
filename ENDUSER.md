@@ -64,8 +64,12 @@ PDFs through OCR first.
 | A stream in the PDF exceeds (or could exceed) the decoded-size limit of N bytes / The PDF exceeds the total decoded-size limit | The file expands far beyond its size when opened. Re-export it from the original application, or ask the administrator to raise the cap. |
 | The part '...' in the Word document is N bytes uncompressed; the limit is M | The document embeds something very large (usually an image or object). Compress or remove it, or ask the administrator to raise the cap. |
 | Select at least one category or supply a custom term | Tick a category or add a custom term. |
+| API key required (401, API only) | The administrator has configured API keys. Send one in the `X-Api-Key` header. |
+| Too many requests (429, API only) | You have exceeded the number of requests allowed per window. Wait up to the number of seconds in the `Retry-After` header and retry. |
 
 ## Using the API instead
 
 Automations can post the same options to `/api/redact` and receive the file back; see the
-README for the field list and a `curl` example.
+README for the field list and a `curl` example. When the administrator has configured API keys,
+every API call needs one in the `X-Api-Key` header, and each key has its own request budget per
+window. The browser page never needs a key.

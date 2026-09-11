@@ -21,8 +21,13 @@ builder.Services.AddOptions<KestrelServerOptions>()
 builder.Services.AddOptions<FormOptions>()
     .Configure<IOptions<RedactionSettings>>((form, settings) => form.MultipartBodyLengthLimit = settings.Value.RequestBodyLimit);
 
-builder.Services.AddDocumentRedaction(provider => provider.GetRequiredService<IOptions<RedactionSettings>>().Value.Limits);
+builder.Services.AddDocumentRedaction(
+    limits: provider => provider.GetRequiredService<IOptions<RedactionSettings>>().Value.Limits,
+    pdfLicense: provider => provider.GetRequiredService<IOptions<RedactionSettings>>().Value.QuestPdfLicense);
 builder.Services.AddSingleton<ProcessingEstimator>();
+builder.Services.AddSingleton<ApiKeyAuthenticator>();
+builder.Services.AddHostedService<ApiKeyStartupCheck>();
+builder.Services.AddApiRateLimiting();
 builder.Services.AddOpenApi();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -37,6 +42,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
+app.UseRateLimiter();
 app.UseAntiforgery();
 
 app.MapOpenApi();

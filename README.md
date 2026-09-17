@@ -7,6 +7,8 @@ the redacted copy. Nothing is persisted and document content is never logged.
 Tracking issue: [#1](https://github.com/wloescher/DocumentRedaction/issues/1). Work log: [TASKS.md](TASKS.md).
 End-user guide: [ENDUSER.md](ENDUSER.md).
 
+![The Document Redaction page: a file picker, the categories and kinds to redact, custom terms, the placeholder format, and the Redact document button.](docs/images/redaction-ui.png)
+
 ## How it works
 
 1. The upload is buffered in memory and routed to a processor by extension (then content type).

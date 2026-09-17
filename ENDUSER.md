@@ -2,6 +2,8 @@
 
 ## Redact a document in the browser
 
+![The Document Redaction page: a file picker, the categories and kinds to redact, custom terms, the placeholder format, and the Redact document button.](docs/images/redaction-ui.png)
+
 1. Open the site and choose a file under **1. Document**. Word (.docx), PDF and plain-text files
    are accepted, up to the size shown next to the file picker.
 2. Under **2. What to redact**, tick the categories you need. Expand a ticked category to

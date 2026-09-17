@@ -4,6 +4,10 @@
 
 Nothing. Every follow-up from the initial build is merged; open a new issue for the next piece of work.
 
+## Done: UI screenshot in end-user docs — [#17](https://github.com/wloescher/DocumentRedaction/issues/17)
+
+- [x] Full-page capture of the browser redaction page stored at `docs/images/redaction-ui.png` and referenced from `ENDUSER.md`. Docs-only; review/test gates not applicable.
+
 ## Done: heuristic person-name detection — [#6](https://github.com/wloescher/DocumentRedaction/issues/6), PR #12
 
 Honorific, title, form-label, salutation and given-name-list rules; Unicode words; stop words shared with the address detector. 705 tests at merge. Checked against a real resume: no false positives, one miss (a given name not on the list).
